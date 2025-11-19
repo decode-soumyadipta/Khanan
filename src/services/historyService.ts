@@ -25,13 +25,26 @@ export interface TileResult {
 export interface AnalysisResults {
   tiles: TileResult[];
   detections: any[];
-  mergedBlocks: any[];
+  mergedBlocks: any;
+  totalTiles: number;
+  tilesProcessed: number;
+  tilesWithMining: number;
+  detectionCount: number;
+  totalMiningArea?: {
+    m2: number;
+    hectares: number;
+    km2: number;
+  };
   statistics: {
     totalTiles: number;
     processedTiles: number;
     tilesWithDetections: number;
     totalDetections: number;
     averageConfidence: number;
+    avgConfidence?: number;
+    maxConfidence?: number;
+    minConfidence?: number;
+    coveragePercentage?: number;
   };
 }
 
@@ -40,6 +53,11 @@ export interface AnalysisHistoryRecord {
   analysisId: string;
   userId: string;
   aoiGeometry: any;
+  aoiBounds?: any;
+  aoiArea?: {
+    km2: number;
+    hectares: number;
+  };
   status: 'processing' | 'completed' | 'failed' | 'cancelled';
   startTime: Date;
   endTime?: Date;
@@ -117,6 +135,24 @@ export const getAnalysisById = async (
 };
 
 /**
+ * Save completed analysis to database
+ */
+export const saveAnalysis = async (
+  analysisData: {
+    analysisId: string;
+    aoiGeometry?: any;
+    aoiBounds?: any;
+    results: any;
+    logs?: any[];
+    metadata?: any;
+    force?: boolean; // Allow force parameter to overwrite existing
+  }
+): Promise<{ message: string; analysisId: string; analysis: AnalysisHistoryRecord }> => {
+  const response = await apiClient.post('/history', analysisData);
+  return response.data;
+};
+
+/**
  * Update analysis notes and tags
  */
 export const updateAnalysis = async (
@@ -158,6 +194,7 @@ export default {
   getAnalysisHistory,
   getAnalysisStats,
   getAnalysisById,
+  saveAnalysis,
   updateAnalysis,
   deleteAnalysis,
   bulkDeleteAnalyses,

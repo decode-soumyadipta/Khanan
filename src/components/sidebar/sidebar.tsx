@@ -33,6 +33,8 @@ import {
 } from "@mui/icons-material";
 import { useSidebar } from "./hooks";
 import { useAuth } from '@/contexts/AuthContext';
+import { GeoAnalystItemsInjection } from "./injections/GeoAnalystItemsInjection";
+import { InjectedItemsSection } from "./InjectedItemsSection";
 import { 
   LayoutDashboard, 
   BarChart3, 
@@ -78,14 +80,6 @@ const getSidebarItems = (userRole: string, isSuperAdmin: boolean, hasModuleAcces
       icon: SatelliteIcon,
       roles: ['system_super_admin', 'ntro_nodal_officer', 'intelligence_analyst', 'state_mining_admin', 'district_mining_officer', 'senior_geo_officer', 'geo_analyst', 'reviewing_officer'],
       requiredPermission: { resource: 'mining_analysis', action: 'read' },
-      requiredModule: 'mining_operations'
-    },
-    { 
-      title: "New Analysis", 
-      url: "/mining-analysis/new", 
-      icon: LandPlot,
-      roles: ['system_super_admin', 'ntro_nodal_officer', 'intelligence_analyst', 'state_mining_admin', 'district_mining_officer', 'senior_geo_officer', 'geo_analyst'],
-      requiredPermission: { resource: 'mining_analysis', action: 'create' },
       requiredModule: 'mining_operations'
     },
     { 
@@ -597,59 +591,13 @@ export function AppSidebar() {
               </div>
             )}
 
-            {/* Analysis Quick Actions Section - Below Profile */}
-            {isAuthenticated && isGeoAnalyst() && (
-              <div className={cn(
-                "space-y-1 transition-all",
-                isExpanded ? "px-2 py-3" : "px-1 py-2 flex flex-col items-center"
-              )}>
-                {/* New Analysis Button */}
-                <Tooltip
-                  title={isExpanded ? "" : "New Analysis"}
-                  placement="right"
-                >
-                  <Link
-                    href="/geoanalyst-dashboard"
-                    onClick={handleLinkClick}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg transition-colors no-underline",
-                      isExpanded ? "px-2 py-2 w-full" : "p-2",
-                      "text-black! dark:text-black! hover:text-white! hover:bg-amber-500 dark:hover:bg-amber-600"
-                    )}
-                  >
-                    <SatelliteIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-                    {isExpanded && (
-                      <span className="text-sm font-normal text-black! dark:text-black!">
-                        New Analysis
-                      </span>
-                    )}
-                  </Link>
-                </Tooltip>
-
-                {/* Analysis History Button */}
-                <Tooltip
-                  title={isExpanded ? "" : "Analysis History"}
-                  placement="right"
-                >
-                  <Link
-                    href="/geoanalyst-dashboard/history"
-                    onClick={handleLinkClick}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg transition-colors no-underline",
-                      isExpanded ? "px-2 py-2 w-full" : "p-2",
-                      "text-black! dark:text-black! hover:text-white! hover:bg-amber-500 dark:hover:bg-amber-600"
-                    )}
-                  >
-                    <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    {isExpanded && (
-                      <span className="text-sm font-normal text-black! dark:text-black!">
-                        Analysis History
-                      </span>
-                    )}
-                  </Link>
-                </Tooltip>
-              </div>
-            )}
+            {/* Injected Profile Items Section - GEO ANALYST & OTHER ROLES */}
+            <GeoAnalystItemsInjection />
+            <InjectedItemsSection 
+              section="profile"
+              isExpanded={isExpanded}
+              onLinkClick={handleLinkClick}
+            />
 
             {/* Navigation Items */}
             <div className="space-y-1 p-2">

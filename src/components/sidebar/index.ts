@@ -3,3 +3,7 @@ export * from "./trigger";
 export * from "./sidebar";
 export * from "./hooks";
 export * from "./types";
+export * from "./SidebarItemsRegistry";
+export * from "./SidebarItemComponent";
+export * from "./InjectedItemsSection";
+export * from "./injections/GeoAnalystItemsInjection";

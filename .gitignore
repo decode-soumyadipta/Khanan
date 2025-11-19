@@ -42,3 +42,5 @@ next-env.d.ts
 
 
 old_front
+src/components/geoanalyst/TileOverlayManager.tsx.backup
+src/app/geoanalyst-dashboard/results/page.tsx.backup

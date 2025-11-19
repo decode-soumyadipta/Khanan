@@ -34,7 +34,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { styled } from '@mui/material/styles';
-import { SidebarTrigger } from '../sidebar';
+import { SidebarTrigger, useSidebar } from '../sidebar';
 import Logo from '@/components/ui/Logo';
 
 // Custom styled components - Dark Royal Blue Theme with Golden Text
@@ -78,6 +78,7 @@ const useIsMobile = () => {
 export const Header = () => {
   const router = useRouter();
   const theme = useTheme();
+  const { toggleSidebar } = useSidebar();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState<null | HTMLElement>(null);
   const isMobile = useIsMobile();
@@ -227,6 +228,7 @@ export const Header = () => {
         {/* Left: Sidebar + Logo */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton
+            onClick={toggleSidebar}
             sx={{ 
               color: '#fcd34d',
               '&:hover': { 
@@ -235,7 +237,7 @@ export const Header = () => {
               }
             }}
           >
-            <SidebarTrigger />
+            <SidebarTrigger asChild />
           </IconButton>
           <Logo size={40} withCircle={true} />
           <GradientText 

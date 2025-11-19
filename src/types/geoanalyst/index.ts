@@ -88,24 +88,28 @@ export interface MineBlock {
 }
 
 export interface TileData {
-  id: string;
+  id: string | number;
+  tile_id?: string;  // Backend uses both id and tile_id
   index: number;
+  row?: number;
+  col?: number;
   coordinates: {
     lat: number;
     lng: number;
   };
-  bounds?: {
-    north: number;
-    south: number;
-    east: number;
-    west: number;
-  };
+  bounds?: number[][];  // Array of [lon, lat] coordinates defining tile corners
   bands: string[];
+  bands_used?: string[];  // Backend returns this
   cloudCoverage: number;
+  cloud_coverage?: number;  // Backend returns this
   timestamp: string;
   size: string;
+  status?: string;
+  error?: string | null;
   miningDetected: boolean;
+  mining_detected?: boolean;  // Backend returns this
   miningPercentage?: number;
+  mining_percentage?: number;  // Backend returns this
   confidence: number;
   image_base64?: string;
   mine_blocks?: MineBlock[];

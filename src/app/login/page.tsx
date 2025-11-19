@@ -19,15 +19,28 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [redirecting, setRedirecting] = useState(false);
   
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user, loading: authLoading } = useAuth();
   const { showSnackbar } = useSnackbar();
   const router = useRouter();
 
   useEffect(() => {
-    // Let the AuthContext handle redirection based on user role
-    // Don't redirect here - the login function in AuthContext will handle it
-  }, []);
+    // Redirect already authenticated users
+    if (isAuthenticated && user && !authLoading) {
+      console.log('🔄 User already authenticated, redirecting...');
+      setRedirecting(true);
+      
+      // Redirect based on user role
+      if (user.userType === 'ADMIN') {
+        router.push('/admin');
+      } else if (user.userType === 'GEO_ANALYST') {
+        router.push('/geoanalyst-dashboard');
+      } else {
+        router.push('/profile');
+      }
+    }
+  }, [isAuthenticated, user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +51,8 @@ export default function LoginPage() {
       const success = await login(email, password);
       if (success) {
         showSnackbar('Login successful!', 'success');
-        // Don't redirect here - AuthContext login function handles role-based redirect
+        setRedirecting(true);
+        // Redirect happens in AuthContext login function
       } else {
         setError('Login failed. Please check your credentials.');
       }
@@ -49,10 +63,21 @@ export default function LoginPage() {
     }
   };
 
-  if (isAuthenticated) {
+  // Show loading while checking auth or redirecting
+  if (authLoading || redirecting) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: 'linear-gradient(to right, #1a1a2e, #16213e, #0f3460)',
+      }}>
+        <CircularProgress sx={{ color: '#fbbf24' }} />
+        <Typography sx={{ mt: 2, color: '#fcd34d' }}>
+          {redirecting ? 'Redirecting...' : 'Loading...'}
+        </Typography>
       </Box>
     );
   }

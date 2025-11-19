@@ -19,9 +19,13 @@ const processQueue = (error: any | null) => {
   failedQueue = [];
 };
 
+// Log API URL configuration for debugging
+const apiBaseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+console.log('📍 API Base URL:', apiBaseURL);
+
 // Create axios instance with cookies enabled
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: apiBaseURL,
   timeout: 30000,
   withCredentials: true, // This sends cookies automatically
 });
@@ -42,7 +46,7 @@ apiClient.interceptors.request.use(
       delete config.headers['Content-Type'];
     }
     
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => {
@@ -60,12 +64,14 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Only log non-401 errors, or 401 errors from non-auth endpoints
+    // Only log non-401 errors, or 401 errors from non-auth/analysis endpoints
     // 401 on auth endpoints is expected when user is not logged in
+    // 401 on analysis endpoints is expected to trigger token refresh
     const isAuthEndpoint = error.config?.url?.includes('/auth/');
+    const isAnalysisEndpoint = error.config?.url?.includes('/python/analysis/');
     const is401 = error.response?.status === 401;
     
-    if (!is401 || !isAuthEndpoint) {
+    if (!is401 || (!isAuthEndpoint && !isAnalysisEndpoint)) {
       console.error(`❌ API Error: ${error.response?.status} ${error.config?.url}`, error.response?.data);
     }
 

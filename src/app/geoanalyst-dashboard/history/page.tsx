@@ -113,16 +113,44 @@ const AnalysisHistoryPage: React.FC = () => {
         params.search = searchQuery;
       }
 
-      const [historyData, statsData] = await Promise.all([
-        getAnalysisHistory(params),
-        getAnalysisStats()
-      ]);
+      // Add retry logic with exponential backoff for transient errors
+      let retries = 0;
+      const maxRetries = 3;
+      
+      const executeWithRetry = async () => {
+        try {
+          const [historyData, statsData] = await Promise.all([
+            getAnalysisHistory(params),
+            getAnalysisStats()
+          ]);
 
-      setAnalyses(historyData.analyses);
-      setTotalCount(historyData.total);
-      setStats(statsData);
+          setAnalyses(historyData.analyses);
+          setTotalCount(historyData.total);
+          setStats(statsData);
+        } catch (err: any) {
+          // If it's a 429 (rate limited) or 503 (service unavailable), retry
+          if ((err.response?.status === 429 || err.response?.status === 503) && retries < maxRetries) {
+            retries++;
+            const delay = Math.pow(2, retries) * 1000; // Exponential backoff
+            console.log(`⏱️ Rate limited or service unavailable, retrying in ${delay}ms (attempt ${retries}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return executeWithRetry();
+          }
+          
+          // If it's a 401 (unauthorized), the apiClient will handle token refresh
+          if (err.response?.status === 401) {
+            setError('Your session has expired. Please refresh the page.');
+            return;
+          }
+          
+          throw err;
+        }
+      };
+
+      await executeWithRetry();
     } catch (err: any) {
-      setError(err.message || 'Failed to load analysis history');
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to load analysis history';
+      setError(errorMsg);
       console.error('Error loading history:', err);
     } finally {
       setLoading(false);
@@ -131,11 +159,30 @@ const AnalysisHistoryPage: React.FC = () => {
 
   const handleViewDetails = async (analysisId: string) => {
     try {
-      const details = await getAnalysisById(analysisId, false);
+      let retries = 0;
+      const maxRetries = 3;
+      
+      const fetchWithRetry = async (): Promise<any> => {
+        try {
+          return await getAnalysisById(analysisId, false);
+        } catch (err: any) {
+          if ((err.response?.status === 429 || err.response?.status === 503) && retries < maxRetries) {
+            retries++;
+            const delay = Math.pow(2, retries) * 1000;
+            console.log(`⏱️ Rate limited, retrying in ${delay}ms (attempt ${retries}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return fetchWithRetry();
+          }
+          throw err;
+        }
+      };
+
+      const details = await fetchWithRetry();
       setSelectedAnalysis(details);
       setViewDialogOpen(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to load analysis details');
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to load analysis details';
+      setError(errorMsg);
     }
   };
 
@@ -243,19 +290,37 @@ const AnalysisHistoryPage: React.FC = () => {
     }
   };
 
-  const formatDuration = (ms?: number) => {
-    if (!ms) return 'N/A';
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
+  const formatDuration = (seconds?: number | string) => {
+    if (!seconds) return 'N/A';
+    
+    // Convert to number if string
+    const totalSeconds = typeof seconds === 'string' ? parseInt(seconds, 10) : seconds;
+    
+    if (isNaN(totalSeconds) || totalSeconds < 0) {
+      return 'N/A';
+    }
+    
+    if (totalSeconds === 0) {
+      return '0s';
+    }
+    
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    
+    const parts: string[] = [];
     
     if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    } else {
-      return `${seconds}s`;
+      parts.push(`${hours}h`);
     }
+    if (minutes > 0) {
+      parts.push(`${minutes}m`);
+    }
+    if (secs > 0 || parts.length === 0) {
+      parts.push(`${secs}s`);
+    }
+    
+    return parts.join(' ');
   };
 
   return (
@@ -450,7 +515,7 @@ const AnalysisHistoryPage: React.FC = () => {
                   </TableCell>
                   <TableCell>{formatDuration(analysis.duration)}</TableCell>
                   <TableCell>
-                    {analysis.results?.statistics?.totalDetections || 0}
+                    {analysis.results?.detectionCount || 0}
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} flexWrap="wrap">
@@ -509,100 +574,400 @@ const AnalysisHistoryPage: React.FC = () => {
       <Dialog
         open={viewDialogOpen}
         onClose={() => setViewDialogOpen(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
       >
-        <DialogTitle>Analysis Details</DialogTitle>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Analysis Details</Typography>
+            <Button 
+              variant="outlined" 
+              size="small"
+              onClick={() => {
+                if (selectedAnalysis?.analysisId) {
+                  window.open(`/geoanalyst-dashboard/results?id=${selectedAnalysis.analysisId}`, '_blank');
+                }
+              }}
+            >
+              View Full Results
+            </Button>
+          </Box>
+        </DialogTitle>
         <DialogContent>
           {selectedAnalysis && (
             <Box sx={{ pt: 2 }}>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Analysis ID
-                  </Typography>
-                  <Typography variant="body2" fontFamily="monospace">
-                    {selectedAnalysis.analysisId}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Status
-                  </Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <Chip
-                      icon={getStatusIcon(selectedAnalysis.status) || undefined}
-                      label={selectedAnalysis.status}
-                      color={getStatusColor(selectedAnalysis.status)}
-                      size="small"
-                    />
-                  </Box>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Start Time
-                  </Typography>
-                  <Typography variant="body2">
-                    {selectedAnalysis.startTime ? format(new Date(selectedAnalysis.startTime), 'PPpp') : 'N/A'}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Duration
-                  </Typography>
-                  <Typography variant="body2">
-                    {formatDuration(selectedAnalysis.duration)}
-                  </Typography>
-                </Box>
-                {selectedAnalysis.results && selectedAnalysis.results.statistics && (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mt: 2 }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Total Tiles
-                      </Typography>
-                      <Typography variant="h6">
-                        {selectedAnalysis.results.statistics.totalTiles || 0}
-                      </Typography>
+              <Stack spacing={3}>
+                {/* Basic Info */}
+                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                  <Stack spacing={2}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Analysis ID
+                        </Typography>
+                        <Typography variant="body2" fontFamily="monospace">
+                          {selectedAnalysis.analysisId}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Status
+                        </Typography>
+                        <Box sx={{ mt: 0.5 }}>
+                          <Chip
+                            icon={getStatusIcon(selectedAnalysis.status) || undefined}
+                            label={selectedAnalysis.status}
+                            color={getStatusColor(selectedAnalysis.status)}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Start Time
+                        </Typography>
+                        <Typography variant="body2">
+                          {selectedAnalysis.startTime ? format(new Date(selectedAnalysis.startTime), 'PPpp') : 'N/A'}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Duration
+                        </Typography>
+                        <Typography variant="body2">
+                          {formatDuration(selectedAnalysis.duration)}
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Detections
-                      </Typography>
-                      <Typography variant="h6">
-                        {selectedAnalysis.results.statistics.totalDetections || 0}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Avg Confidence
-                      </Typography>
-                      <Typography variant="h6">
-                        {selectedAnalysis.results.statistics.averageConfidence 
-                          ? (selectedAnalysis.results.statistics.averageConfidence * 100).toFixed(1) 
-                          : 'N/A'}%
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
-                {selectedAnalysis.userNotes && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Notes
+                  </Stack>
+                </Paper>
+
+                {/* Statistics Grid */}
+                {selectedAnalysis.results && (
+                  <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      Analysis Statistics
                     </Typography>
-                    <Typography variant="body2">{selectedAnalysis.userNotes}</Typography>
-                  </Box>
+                    {(() => {
+                      // Calculate totals from tiles
+                      const tiles = selectedAnalysis.results.tiles || [];
+                      const totalAreaM2 = tiles.reduce((sum: number, tile: any) => {
+                        return sum + (tile.total_area_m2 || 0);
+                      }, 0);
+                      
+                      // Use stored totalMiningArea if available, otherwise calculate from tiles
+                      let totalMiningAreaM2 = 0;
+                      if (selectedAnalysis.results.totalMiningArea?.m2) {
+                        totalMiningAreaM2 = selectedAnalysis.results.totalMiningArea.m2;
+                      } else {
+                        // Fallback: calculate from individual tile mining areas
+                        totalMiningAreaM2 = tiles.reduce((sum: number, tile: any) => {
+                          const tileArea = tile.total_area_m2 || 0;
+                          const miningPercent = tile.mining_percentage || 0;
+                          return sum + (tileArea * miningPercent / 100);
+                        }, 0);
+                      }
+                      
+                      return (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="caption" color="text.secondary">
+                                Total Area
+                              </Typography>
+                              <Typography variant="h5" color="primary">
+                                {(totalAreaM2 / 10000).toFixed(1)} ha
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                ({(totalAreaM2 / 1000000).toFixed(2)} km²)
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="caption" color="text.secondary">
+                                Tiles Analyzed
+                              </Typography>
+                              <Typography variant="h5">
+                                {selectedAnalysis.results.totalTiles || 0}
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="caption" color="text.secondary">
+                                Mine Blocks
+                              </Typography>
+                              <Typography variant="h5" color="error">
+                                {selectedAnalysis.results.detectionCount || 0}
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="caption" color="text.secondary">
+                                Mining Area
+                              </Typography>
+                              <Typography variant="h6" color="error">
+                                {(totalMiningAreaM2 / 10000).toFixed(1)} ha
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                ({(totalMiningAreaM2 / 1000000).toFixed(4)} km²)
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                        </Box>
+                      );
+                    })()}
+                  </Paper>
                 )}
-                {selectedAnalysis.tags && selectedAnalysis.tags.length > 0 && (
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Tags
+
+                {/* Tile Details Table */}
+                {selectedAnalysis.results?.tiles && selectedAnalysis.results.tiles.length > 0 && (
+                  <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      Tile-wise Analysis ({selectedAnalysis.results.tiles.length} tiles)
                     </Typography>
-                    <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {selectedAnalysis.tags.map((tag, idx) => (
-                        <Chip key={idx} label={tag} size="small" />
-                      ))}
-                    </Box>
-                  </Box>
+                    <TableContainer sx={{ maxHeight: 300 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Tile</TableCell>
+                            <TableCell align="center">Mining</TableCell>
+                            <TableCell align="right">Coverage %</TableCell>
+                            <TableCell align="right">Blocks</TableCell>
+                            <TableCell align="right">Total Area</TableCell>
+                            <TableCell align="right">Mining Area</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {selectedAnalysis.results.tiles.map((tile: any, idx: number) => {
+                            const tileAreaM2 = tile.total_area_m2 || 0;
+                            const miningPercent = tile.mining_percentage || 0;
+                            const tileMiningAreaM2 = (tileAreaM2 * miningPercent) / 100;
+                            
+                            return (
+                              <TableRow key={idx} hover>
+                                <TableCell>#{idx + 1}</TableCell>
+                                <TableCell align="center">
+                                  <Chip
+                                    size="small"
+                                    label={tile.mining_detected ? 'Yes' : 'No'}
+                                    color={tile.mining_detected ? 'error' : 'success'}
+                                    variant="outlined"
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  {miningPercent.toFixed(2)}%
+                                </TableCell>
+                                <TableCell align="right">
+                                  {tile.num_mine_blocks || 0}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Typography variant="body2">
+                                    {(tileAreaM2 / 10000).toFixed(2)} ha
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    ({(tileAreaM2 / 1000000).toFixed(4)} km²)
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Typography variant="body2" color={tile.mining_detected ? 'error' : 'text.secondary'}>
+                                    {(tileMiningAreaM2 / 10000).toFixed(2)} ha
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    ({(tileMiningAreaM2 / 1000000).toFixed(4)} km²)
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                )}
+
+                {/* Mine Blocks Preview */}
+                {(selectedAnalysis.results?.mergedBlocks || selectedAnalysis.results?.tiles) && (
+                  <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      Detected Mine Blocks
+                    </Typography>
+                    {(() => {
+                      // Try merged blocks first
+                      if (selectedAnalysis.results?.mergedBlocks?.features && 
+                          selectedAnalysis.results.mergedBlocks.features.length > 0) {
+                        const mergedFeatures = selectedAnalysis.results.mergedBlocks.features;
+                        return (
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {mergedFeatures.length} blocks detected 
+                              (merged from {selectedAnalysis.results.mergedBlocks.metadata?.original_block_count || 0} original detections)
+                            </Typography>
+                            <TableContainer sx={{ maxHeight: 300 }}>
+                              <Table size="small" stickyHeader>
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Block ID</TableCell>
+                                    <TableCell>Name</TableCell>
+                                    <TableCell align="right">Area (ha)</TableCell>
+                                    <TableCell align="right">Confidence</TableCell>
+                                    <TableCell align="center">Type</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {mergedFeatures.slice(0, 10).map((feature: any, idx: number) => (
+                                    <TableRow key={idx} hover>
+                                      <TableCell>
+                                        <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                                          {feature.properties.block_id}
+                                        </Typography>
+                                      </TableCell>
+                                      <TableCell>{feature.properties.name}</TableCell>
+                                      <TableCell align="right">
+                                        {((feature.properties.area_m2 || 0) / 10000).toFixed(2)}
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        {((feature.properties.avg_confidence || 0) * 100).toFixed(1)}%
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        <Chip
+                                          size="small"
+                                          label={feature.properties.is_merged ? 'Merged' : 'Single'}
+                                          color={feature.properties.is_merged ? 'primary' : 'default'}
+                                          variant="outlined"
+                                        />
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {mergedFeatures.length > 10 && (
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                Showing first 10 of {mergedFeatures.length} blocks
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      }
+                      
+                      // Fallback to individual tile blocks
+                      const tileBlocks: any[] = [];
+                      selectedAnalysis.results?.tiles?.forEach((tile: any, tileIdx: number) => {
+                        if (tile.mine_blocks && Array.isArray(tile.mine_blocks)) {
+                          tile.mine_blocks.forEach((block: any, blockIdx: number) => {
+                            // Handle both GeoJSON format and flat object format
+                            const props = block.properties || block;
+                            
+                            // Extract fields with multiple fallbacks
+                            const blockId = props.block_id || props.blockId || `T${tileIdx + 1}B${blockIdx + 1}`;
+                            const name = props.name || blockId;
+                            const area_m2 = props.area_m2 || props.areaM2 || 0;
+                            const confidence = props.confidence || props.avg_confidence || props.avgConfidence || 0;
+                            const tileId = tile.tile_id || tile.tileId || tile.id || `T${tileIdx + 1}`;
+                            
+                            tileBlocks.push({
+                              blockId,
+                              name,
+                              area_m2,
+                              confidence,
+                              tileId,
+                              geometry: block.geometry,
+                              properties: props
+                            });
+                          });
+                        }
+                      });
+                      
+                      if (tileBlocks.length > 0) {
+                        return (
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                              {tileBlocks.length} blocks detected across {selectedAnalysis.results?.tiles?.filter((t: any) => t.mine_blocks?.length > 0).length || 0} tiles
+                            </Typography>
+                            <TableContainer sx={{ maxHeight: 300 }}>
+                              <Table size="small" stickyHeader>
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Block ID</TableCell>
+                                    <TableCell>Tile</TableCell>
+                                    <TableCell align="right">Area (ha)</TableCell>
+                                    <TableCell align="right">Confidence</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {tileBlocks.slice(0, 10).map((block: any, idx: number) => (
+                                    <TableRow key={idx} hover>
+                                      <TableCell>
+                                        <Typography variant="body2" fontFamily="monospace" fontSize="0.75rem">
+                                          {block.blockId}
+                                        </Typography>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Chip size="small" label={block.tileId} variant="outlined" />
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        <Typography variant="body2" fontWeight="bold">
+                                          {(block.area_m2 / 10000).toFixed(2)}
+                                        </Typography>
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        <Typography variant="body2" color="success.main">
+                                          {(block.confidence * 100).toFixed(1)}%
+                                        </Typography>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                            {tileBlocks.length > 10 && (
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                                Showing first 10 of {tileBlocks.length} blocks
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      }
+                      
+                      // No blocks found
+                      return (
+                        <Typography variant="body2" color="text.secondary">
+                          No mine blocks detected
+                        </Typography>
+                      );
+                    })()}
+                  </Paper>
+                )}
+
+                {/* Notes and Tags */}
+                {(selectedAnalysis.userNotes || (selectedAnalysis.tags && selectedAnalysis.tags.length > 0)) && (
+                  <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
+                    <Stack spacing={2}>
+                      {selectedAnalysis.userNotes && (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            Notes
+                          </Typography>
+                          <Typography variant="body2">{selectedAnalysis.userNotes}</Typography>
+                        </Box>
+                      )}
+                      {selectedAnalysis.tags && selectedAnalysis.tags.length > 0 && (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            Tags
+                          </Typography>
+                          <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            {selectedAnalysis.tags.map((tag, idx) => (
+                              <Chip key={idx} label={tag} size="small" />
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                    </Stack>
+                  </Paper>
                 )}
               </Stack>
             </Box>

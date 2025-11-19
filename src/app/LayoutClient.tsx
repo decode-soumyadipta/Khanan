@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
 import { AnalysisProvider } from '@/contexts/AnalysisContext';
+import { SidebarItemsRegistryProvider } from "@/components/sidebar/SidebarItemsRegistry";
 
 import { Box, CircularProgress } from '@mui/material';
 import { SidebarProvider } from "@/components/sidebar/provider";
@@ -75,19 +76,21 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
       <SnackbarProvider>
         <AuthProvider>
           <AnalysisProvider>
-            <div className="min-h-screen flex flex-col">
-              <main className="flex-1">
-                {isProtectedPage ? (
-                  <ProtectedLayout>
-                    {children}
-                  </ProtectedLayout>
-                ) : (
-                  <div className="w-full h-full min-h-screen bg-white dark:bg-gray-900">
-                    {children}
-                  </div>
-                )}
-              </main>
-            </div>
+            <SidebarItemsRegistryProvider>
+              <div className="min-h-screen flex flex-col">
+                <main className="flex-1">
+                  {isProtectedPage ? (
+                    <ProtectedLayout>
+                      {children}
+                    </ProtectedLayout>
+                  ) : (
+                    <div className="w-full h-full min-h-screen bg-white dark:bg-gray-900">
+                      {children}
+                    </div>
+                  )}
+                </main>
+              </div>
+            </SidebarItemsRegistryProvider>
           </AnalysisProvider>
         </AuthProvider>
       </SnackbarProvider>

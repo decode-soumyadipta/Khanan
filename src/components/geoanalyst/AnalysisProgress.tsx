@@ -1,6 +1,8 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   Box,
   Paper,
@@ -41,6 +43,15 @@ import { styled, keyframes } from '@mui/material/styles';
 import apiClient from '@/services/apiClient';
 import { stopAnalysis } from '@/services/historyService';
 import { useAnalysis } from '@/contexts/AnalysisContext';
+import { TileOverlayManager } from './TileOverlayManager';
+
+// Fix Leaflet default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
 
 // Animations
 const pulse = keyframes`
@@ -184,6 +195,11 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
   const [elapsedTime, setElapsedTime] = useState(0);
   const [abortDialogOpen, setAbortDialogOpen] = useState(false);
   const [aborting, setAborting] = useState(false);
+  
+  // Map state
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const aoiLayerRef = useRef<L.Polygon | null>(null);
 
   useEffect(() => {
     // Initialize analysis in context
@@ -194,6 +210,60 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
       progress: 0
     });
   }, [analysisId, setCurrentAnalysis]);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
+
+    const mapInstance = L.map(mapRef.current, {
+      center: [20.5937, 78.9629],
+      zoom: 5,
+      zoomControl: true,
+    });
+
+    // Satellite imagery base layer
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '&copy; Esri',
+      maxZoom: 19,
+    }).addTo(mapInstance);
+
+    // Reference labels layer
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '&copy; Esri',
+      maxZoom: 19,
+      opacity: 0.5,
+    }).addTo(mapInstance);
+
+    mapInstanceRef.current = mapInstance;
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Auto-zoom to tiles as they arrive
+  useEffect(() => {
+    if (!mapInstanceRef.current || !status.tiles || status.tiles.length === 0) return;
+
+    const map = mapInstanceRef.current;
+    const allBounds = status.tiles.flatMap(t => t.bounds || []);
+    
+    if (allBounds.length > 0) {
+      const lats = allBounds.map(b => b[1]);
+      const lngs = allBounds.map(b => b[0]);
+      
+      const bounds = L.latLngBounds([
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)]
+      ]);
+      
+      // Fit bounds with padding
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [status.tiles]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -223,6 +293,14 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         }
       } catch (error: any) {
         console.error('Error polling status:', error);
+        
+        // 401 means token expired - apiClient will automatically try to refresh
+        // Don't show error message here, let the refresh happen silently
+        if (error.status === 401) {
+          console.log('🔄 Token expired, will retry...');
+          return; // Let the next poll attempt the request
+        }
+        
         console.error('Error details:', error.response?.data || error.message);
         clearInterval(interval);
         clearInterval(timeInterval);
@@ -289,43 +367,63 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
   };
 
   return (
-    <Box sx={{ p: 3, minHeight: '100vh', background: 'linear-gradient(to right, #1a1a2e, #16213e, #0f3460)' }}>
-      <ProgressContainer>
-        {/* Header with Abort Button */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-          <Box sx={{ textAlign: 'center', flex: 1 }}>
-            <GoldenText variant="h4" fontWeight="bold" gutterBottom>
-              Analysis in Progress
-            </GoldenText>
-            <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)' }}>
-              Processing your Area of Interest - Analysis ID: {analysisId.slice(0, 8)}...
-            </Typography>
+    <Box sx={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(to right, #1a1a2e, #16213e, #0f3460)', overflow: 'hidden' }}>
+      {/* Left Panel - Progress Information */}
+      <Box sx={{ 
+        width: { xs: '100%', sm: 450, md: 500 }, 
+        overflowY: 'auto', 
+        overflowX: 'hidden',
+        p: 2,
+        flexShrink: 0,
+        maxHeight: '100vh',
+        '&::-webkit-scrollbar': {
+          width: '6px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: 'rgba(251, 191, 36, 0.05)',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: 'rgba(251, 191, 36, 0.3)',
+          borderRadius: '3px',
+          '&:hover': {
+            background: 'rgba(251, 191, 36, 0.5)',
+          }
+        }
+      }}>
+        <ProgressContainer elevation={0} sx={{ background: 'transparent', boxShadow: 'none', p: 0 }}>
+          {/* Header with Abort Button */}
+          <Box sx={{ mb: 4 }}>
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
+              <GoldenText variant="h5" fontWeight="bold" gutterBottom>
+                Analysis in Progress
+              </GoldenText>
+              <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.875rem' }}>
+                Analysis ID: {analysisId.slice(0, 8)}...
+              </Typography>
+            </Box>
+            
+            {/* Abort Button */}
+            <Button
+              fullWidth
+              variant="contained"
+              color="error"
+              startIcon={<Stop />}
+              onClick={() => setAbortDialogOpen(true)}
+              disabled={aborting}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 600,
+                py: 1.5,
+                borderRadius: '8px',
+                backgroundColor: '#ef4444',
+                '&:hover': {
+                  backgroundColor: '#dc2626',
+                }
+              }}
+            >
+              {aborting ? 'Stopping...' : 'Abort Analysis'}
+            </Button>
           </Box>
-          
-          {/* Abort Button in Top Right */}
-          <Button
-            variant="contained"
-            color="error"
-            startIcon={<Stop />}
-            onClick={() => setAbortDialogOpen(true)}
-            disabled={aborting}
-            sx={{
-              ml: 2,
-              textTransform: 'none',
-              fontWeight: 600,
-              px: 3,
-              py: 1.5,
-              borderRadius: '8px',
-              whiteSpace: 'nowrap',
-              backgroundColor: '#ef4444',
-              '&:hover': {
-                backgroundColor: '#dc2626',
-              }
-            }}
-          >
-            {aborting ? 'Stopping...' : 'Abort Analysis'}
-          </Button>
-        </Box>
 
         {/* Progress Bar */}
         <Fade in={true} timeout={800}>
@@ -394,17 +492,26 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         </Slide>
 
         {/* Stepper */}
-        <Stepper activeStep={getCurrentStepIndex()} sx={{ mb: 4 }}>
+        <Stepper 
+          activeStep={getCurrentStepIndex()} 
+          orientation="vertical"
+          sx={{ 
+            mb: 3,
+            '& .MuiStep-root': {
+              py: 1,
+            }
+          }}
+        >
           {ANALYSIS_STEPS.map((step, index) => {
             const stepStatus = getStepStatus(index);
             return (
-              <Step key={step.key}>
+              <Step key={step.key} sx={{ py: 0 }}>
                 <StepLabel
                   StepIconComponent={() => (
                     <Box
                       sx={{
-                        width: 40,
-                        height: 40,
+                        width: 32,
+                        height: 32,
                         borderRadius: '50%',
                         display: 'flex',
                         alignItems: 'center',
@@ -418,22 +525,24 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
                         border: `2px solid ${
                           stepStatus === 'active' ? '#fcd34d' : 'rgba(251, 191, 36, 0.3)'
                         }`,
-                        color: stepStatus === 'completed' ? '#1a1a2e' : '#fcd34d'
+                        color: stepStatus === 'completed' ? '#1a1a2e' : '#fcd34d',
+                        fontSize: '0.75rem'
                       }}
                     >
                       {stepStatus === 'completed' ? (
-                        <CheckCircle />
+                        <CheckCircle sx={{ fontSize: '1.2rem' }} />
                       ) : stepStatus === 'active' ? (
-                        <CircularProgress size={20} sx={{ color: '#fcd34d' }} />
+                        <CircularProgress size={16} sx={{ color: '#fcd34d' }} />
                       ) : (
-                        <RadioButtonUnchecked />
+                        <RadioButtonUnchecked sx={{ fontSize: '1.2rem' }} />
                       )}
                     </Box>
                   )}
                   sx={{
                     '& .MuiStepLabel-label': {
                       color: stepStatus === 'completed' ? '#fbbf24' : '#ffffff',
-                      fontWeight: stepStatus === 'active' ? 600 : 400
+                      fontWeight: stepStatus === 'active' ? 600 : 400,
+                      fontSize: '0.875rem'
                     }
                   }}
                 >
@@ -445,17 +554,17 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
         </Stepper>
 
         {/* Statistics */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 3, mb: 4 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2, mb: 4 }}>
           <Fade in={true} timeout={800} style={{ transitionDelay: '200ms' }}>
             <AnimatedCard>
-              <CardContent sx={{ textAlign: 'center' }}>
-                <Speed sx={{ color: '#fcd34d', fontSize: '2rem', mb: 1 }} />
-                <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.875rem' }}>
+              <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                <Speed sx={{ color: '#fcd34d', fontSize: '1.5rem', mb: 1 }} />
+                <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.75rem' }}>
                   Elapsed Time
                 </Typography>
                 <Typography sx={{ 
                   color: '#fcd34d', 
-                  fontSize: '1.8rem', 
+                  fontSize: '1.4rem', 
                   fontWeight: 'bold',
                   fontFamily: 'monospace'
                 }}>
@@ -468,12 +577,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
           {status.area_km2 && (
             <Fade in={true} timeout={800} style={{ transitionDelay: '400ms' }}>
               <AnimatedCard>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Verified sx={{ color: '#fcd34d', fontSize: '2rem', mb: 1 }} />
-                  <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.875rem' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <Verified sx={{ color: '#fcd34d', fontSize: '1.5rem', mb: 1 }} />
+                  <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.75rem' }}>
                     AOI Area
                   </Typography>
-                  <Typography sx={{ color: '#fcd34d', fontSize: '1.8rem', fontWeight: 'bold' }}>
+                  <Typography sx={{ color: '#fcd34d', fontSize: '1.4rem', fontWeight: 'bold' }}>
                     {status.area_km2} km²
                   </Typography>
                 </CardContent>
@@ -484,12 +593,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
           {status.total_tiles && (
             <Fade in={true} timeout={800} style={{ transitionDelay: '600ms' }}>
               <AnimatedCard>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <CloudDownload sx={{ color: '#fcd34d', fontSize: '2rem', mb: 1 }} />
-                  <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.875rem' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <CloudDownload sx={{ color: '#fcd34d', fontSize: '1.5rem', mb: 1 }} />
+                  <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.75rem' }}>
                     Total Tiles
                   </Typography>
-                  <Typography sx={{ color: '#fcd34d', fontSize: '1.8rem', fontWeight: 'bold' }}>
+                  <Typography sx={{ color: '#fcd34d', fontSize: '1.4rem', fontWeight: 'bold' }}>
                     {status.total_tiles}
                   </Typography>
                 </CardContent>
@@ -500,12 +609,12 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
           {status.tiles_fetched !== undefined && (
             <Fade in={true} timeout={800} style={{ transitionDelay: '800ms' }}>
               <AnimatedCard>
-                <CardContent sx={{ textAlign: 'center' }}>
-                  <Timeline sx={{ color: '#fcd34d', fontSize: '2rem', mb: 1 }} />
-                  <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.875rem' }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <Timeline sx={{ color: '#fcd34d', fontSize: '1.5rem', mb: 1 }} />
+                  <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.75rem' }}>
                     Tiles Progress
                   </Typography>
-                  <Typography sx={{ color: '#fcd34d', fontSize: '1.8rem', fontWeight: 'bold' }}>
+                  <Typography sx={{ color: '#fcd34d', fontSize: '1.4rem', fontWeight: 'bold' }}>
                     {status.tiles_fetched} / {status.total_tiles}
                   </Typography>
                   <Box sx={{ width: '100%', mt: 1 }}>
@@ -535,40 +644,96 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
             Please do not close this window. The analysis may take several minutes depending on the AOI size.
           </Typography>
         </Box>
+        </ProgressContainer>
+      </Box>
 
-        {/* Abort Confirmation Dialog */}
-        <Dialog
-          open={abortDialogOpen}
-          onClose={() => !aborting && setAbortDialogOpen(false)}
-        >
-          <DialogTitle sx={{ fontSize: '1.2rem', fontWeight: 600, color: '#dc2626' }}>
-            Abort Analysis?
-          </DialogTitle>
-          <DialogContent>
-            <Typography sx={{ mt: 2, color: '#555' }}>
-              Are you sure you want to stop this analysis? Any progress will be lost and cannot be recovered.
+      {/* Right Panel - Map View */}
+      <Box sx={{ flex: 1, position: 'relative' }}>
+        {/* Map Container */}
+        <Box ref={mapRef} sx={{ width: '100%', height: '100vh' }} />
+        
+        {/* Tile Overlay Manager */}
+        {mapInstanceRef.current && (
+          <TileOverlayManager
+            map={mapInstanceRef.current}
+            tiles={status.tiles || []}
+            showSatelliteTiles={true}
+            showProbabilityMaps={status.progress >= 80}  // Show heatmaps after ML starts
+            showMineBlocks={status.progress >= 80}       // Show polygons after ML starts
+            satelliteOpacity={0.8}
+            heatmapOpacity={0.6}
+          />
+        )}
+
+        {/* Tile Count Overlay */}
+        {status.tiles && status.tiles.length > 0 && (
+          <Paper
+            elevation={3}
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 16,
+              zIndex: 1000,
+              p: 2,
+              background: 'rgba(26, 26, 46, 0.95)',
+              border: '1px solid rgba(251, 191, 36, 0.2)',
+              backdropFilter: 'blur(10px)'
+            }}
+          >
+            <Typography sx={{ color: '#fcd34d', fontWeight: 'bold', fontSize: '0.875rem' }}>
+              Real-Time Tile Display
             </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={() => setAbortDialogOpen(false)}
-              disabled={aborting}
-              sx={{ textTransform: 'none' }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAbortAnalysis}
-              variant="contained"
-              color="error"
-              disabled={aborting}
-              sx={{ textTransform: 'none' }}
-            >
-              {aborting ? 'Stopping...' : 'Stop Analysis'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </ProgressContainer>
+            <Typography sx={{ color: 'rgba(252, 211, 77, 0.7)', fontSize: '0.75rem' }}>
+              {status.tiles.length} tiles loaded
+            </Typography>
+            {status.tiles.filter(t => t.miningDetected || t.mining_detected).length > 0 && (
+              <Chip
+                size="small"
+                label={`⚠️ ${status.tiles.filter(t => t.miningDetected || t.mining_detected).length} detections`}
+                sx={{
+                  mt: 1,
+                  bgcolor: 'rgba(239, 68, 68, 0.2)',
+                  color: '#fca5a5',
+                  fontSize: '0.75rem'
+                }}
+              />
+            )}
+          </Paper>
+        )}
+      </Box>
+
+      {/* Abort Confirmation Dialog */}
+      <Dialog
+        open={abortDialogOpen}
+        onClose={() => !aborting && setAbortDialogOpen(false)}
+      >
+        <DialogTitle sx={{ fontSize: '1.2rem', fontWeight: 600, color: '#dc2626' }}>
+          Abort Analysis?
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mt: 2, color: '#555' }}>
+            Are you sure you want to stop this analysis? Any progress will be lost and cannot be recovered.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setAbortDialogOpen(false)}
+            disabled={aborting}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAbortAnalysis}
+            variant="contained"
+            color="error"
+            disabled={aborting}
+            sx={{ textTransform: 'none' }}
+          >
+            {aborting ? 'Stopping...' : 'Stop Analysis'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
