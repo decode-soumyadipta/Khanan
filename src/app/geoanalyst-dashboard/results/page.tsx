@@ -533,6 +533,13 @@ const ResultsPage = () => {
       </Box>
     );
   }
+
+  const handleOpenQuantitativeAnalysis = () => {
+    if (!analysisId) {
+      return;
+    }
+    router.push(`/geoanalyst-dashboard/results/quantitative?id=${analysisId}`);
+  };
   const handleZoomToDetections = () => {
     if (!mapInstanceRef.current || !results?.tiles) return;
     
@@ -601,7 +608,7 @@ const ResultsPage = () => {
             {/* Statistics Component */}
             <ResultsStatistics 
               results={{...results, analysis_id: analysisId}}
-              onZoomToDetections={handleZoomToDetections}
+              onOpenQuantitativeAnalysis={handleOpenQuantitativeAnalysis}
             />
 
             <Paper

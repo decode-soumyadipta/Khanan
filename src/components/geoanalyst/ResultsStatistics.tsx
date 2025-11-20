@@ -68,7 +68,7 @@ interface DetectionResults {
 
 interface ResultsStatisticsProps {
   results: DetectionResults;
-  onZoomToDetections?: () => void;
+  onOpenQuantitativeAnalysis?: () => void;
 }
 
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
@@ -84,7 +84,7 @@ const formatNumber = (value: number | undefined | null, fractionDigits = 0) => {
   });
 };
 
-export const ResultsStatistics: React.FC<ResultsStatisticsProps> = ({ results, onZoomToDetections }) => {
+export const ResultsStatistics: React.FC<ResultsStatisticsProps> = ({ results, onOpenQuantitativeAnalysis }) => {
   const tiles = results.tiles ?? [];
   const mosaicTile = tiles.find(tile => tile.status === 'mosaic' || tile.tile_id === 'mosaic');
   const tileAreaMetrics = deriveTileAreaMetrics(tiles as any);
@@ -337,9 +337,9 @@ export const ResultsStatistics: React.FC<ResultsStatisticsProps> = ({ results, o
         </Box>
       </Paper>
 
-      {onZoomToDetections && (
+      {onOpenQuantitativeAnalysis && (
         <Paper
-          onClick={onZoomToDetections}
+          onClick={onOpenQuantitativeAnalysis}
           sx={{
             p: 1.5,
             background: 'rgba(148, 163, 184, 0.12)',
@@ -351,7 +351,10 @@ export const ResultsStatistics: React.FC<ResultsStatisticsProps> = ({ results, o
           elevation={0}
         >
           <Typography sx={{ color: '#e2e8f0', fontWeight: 600, letterSpacing: 1 }}>
-            ZOOM TO BLOCKS
+            QUANTITATIVE ANALYSIS
+          </Typography>
+          <Typography sx={{ color: 'rgba(226, 232, 240, 0.75)', fontSize: '0.75rem', mt: 0.5 }}>
+            Launch DEM-aligned depth and volume metrics
           </Typography>
         </Paper>
       )}

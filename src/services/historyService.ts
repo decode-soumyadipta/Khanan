@@ -54,6 +54,63 @@ export interface AnalysisResults {
   };
 }
 
+export interface QuantitativeVisualizationGrid {
+  x: number[];
+  y: number[];
+  elevation: (number | null)[][];
+  depth: (number | null)[][];
+  rimElevation?: number | null;
+  resolutionX?: number | null;
+  resolutionY?: number | null;
+  unit?: string;
+}
+
+export interface QuantitativeBlockVisualization {
+  grid?: QuantitativeVisualizationGrid;
+  stats?: Record<string, any> | null;
+  extentUTM?: Record<string, any> | null;
+  metadata?: Record<string, any> | null;
+}
+
+export interface QuantitativeBlockRecord {
+  blockId: string;
+  blockLabel: string;
+  persistentId?: string | null;
+  source?: string | null;
+  areaSquareMeters?: number | null;
+  areaHectares?: number | null;
+  rimElevationMeters?: number | null;
+  maxDepthMeters?: number | null;
+  meanDepthMeters?: number | null;
+  medianDepthMeters?: number | null;
+  volumeCubicMeters?: number | null;
+  volumeTrapezoidalCubicMeters?: number | null;
+  pixelCount?: number | null;
+  centroid?: {
+    lon: number;
+    lat: number;
+  } | null;
+  visualization?: QuantitativeBlockVisualization | null;
+  computedAt?: string | Date | null;
+}
+
+export interface QuantitativeAnalysisSnapshot {
+  status?: string;
+  executedAt?: string | Date;
+  steps?: Array<{
+    name: string;
+    status: string;
+    durationMs?: number | null;
+    details?: string[];
+  }>;
+  summary?: Record<string, any>;
+  executiveSummary?: Record<string, any>;
+  blocks?: QuantitativeBlockRecord[];
+  dem?: Record<string, any>;
+  source?: Record<string, any>;
+  metadata?: Record<string, any>;
+}
+
 export interface AnalysisHistoryRecord {
   _id: string;
   analysisId: string;
@@ -81,6 +138,7 @@ export interface AnalysisHistoryRecord {
   viewUrl: string;
   createdAt: Date;
   updatedAt: Date;
+  quantitativeAnalysis?: QuantitativeAnalysisSnapshot;
 }
 
 export interface HistoryStats {
@@ -158,6 +216,14 @@ export const saveAnalysis = async (
   return response.data;
 };
 
+export const saveQuantitativeAnalysis = async (
+  analysisId: string,
+  quantitativeData: QuantitativeAnalysisSnapshot
+): Promise<{ message: string; analysisId: string; quantitativeAnalysis: QuantitativeAnalysisSnapshot }> => {
+  const response = await apiClient.put(`/history/${analysisId}/quantitative`, quantitativeData);
+  return response.data;
+};
+
 /**
  * Update analysis notes and tags
  */
@@ -215,6 +281,7 @@ export default {
   getAnalysisStats,
   getAnalysisById,
   saveAnalysis,
+  saveQuantitativeAnalysis,
   updateAnalysis,
   deleteAnalysis,
   bulkDeleteAnalyses,

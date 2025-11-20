@@ -26,6 +26,10 @@ interface MineBlockRow {
   centroidLat?: number;
   centroidLon?: number;
   bounds?: [number, number, number, number];
+  rimElevationMeters?: number | null;
+  maxDepthMeters?: number | null;
+  meanDepthMeters?: number | null;
+  volumeCubicMeters?: number | null;
 }
 
 interface MineBlockTableProps {
@@ -71,6 +75,13 @@ export const MineBlockTable: React.FC<MineBlockTableProps> = ({ rows }) => {
     return null;
   }
 
+  const hasQuantMetrics = rows.some((row) =>
+    row.volumeCubicMeters !== undefined
+    || row.maxDepthMeters !== undefined
+    || row.meanDepthMeters !== undefined
+    || row.rimElevationMeters !== undefined
+  );
+
   return (
     <Paper
       sx={{
@@ -99,6 +110,22 @@ export const MineBlockTable: React.FC<MineBlockTableProps> = ({ rows }) => {
               <TableCell sx={{ color: '#fcd34d', fontWeight: 'bold', background: 'rgba(15, 52, 96, 0.6)' }} align="right">
                 Confidence
               </TableCell>
+              {hasQuantMetrics && (
+                <>
+                  <TableCell sx={{ color: '#fcd34d', fontWeight: 'bold', background: 'rgba(15, 52, 96, 0.6)' }} align="right">
+                    Rim Elev. (m)
+                  </TableCell>
+                  <TableCell sx={{ color: '#fcd34d', fontWeight: 'bold', background: 'rgba(15, 52, 96, 0.6)' }} align="right">
+                    Max Depth (m)
+                  </TableCell>
+                  <TableCell sx={{ color: '#fcd34d', fontWeight: 'bold', background: 'rgba(15, 52, 96, 0.6)' }} align="right">
+                    Mean Depth (m)
+                  </TableCell>
+                  <TableCell sx={{ color: '#fcd34d', fontWeight: 'bold', background: 'rgba(15, 52, 96, 0.6)' }} align="right">
+                    Volume (m³)
+                  </TableCell>
+                </>
+              )}
               <TableCell sx={{ color: '#fcd34d', fontWeight: 'bold', background: 'rgba(15, 52, 96, 0.6)' }} align="right">
                 Tile
               </TableCell>
@@ -151,6 +178,30 @@ export const MineBlockTable: React.FC<MineBlockTableProps> = ({ rows }) => {
                     ? `${formatNumber(row.confidencePct, 1)}%`
                     : '—'}
                 </TableCell>
+                {hasQuantMetrics && (
+                  <>
+                    <TableCell sx={{ color: '#fff' }} align="right">
+                      {row.rimElevationMeters !== undefined && row.rimElevationMeters !== null
+                        ? formatNumber(row.rimElevationMeters, 1)
+                        : '—'}
+                    </TableCell>
+                    <TableCell sx={{ color: '#fff' }} align="right">
+                      {row.maxDepthMeters !== undefined && row.maxDepthMeters !== null
+                        ? formatNumber(row.maxDepthMeters, 2)
+                        : '—'}
+                    </TableCell>
+                    <TableCell sx={{ color: '#fff' }} align="right">
+                      {row.meanDepthMeters !== undefined && row.meanDepthMeters !== null
+                        ? formatNumber(row.meanDepthMeters, 2)
+                        : '—'}
+                    </TableCell>
+                    <TableCell sx={{ color: '#fff' }} align="right">
+                      {row.volumeCubicMeters !== undefined && row.volumeCubicMeters !== null
+                        ? formatNumber(row.volumeCubicMeters, 1)
+                        : '—'}
+                    </TableCell>
+                  </>
+                )}
                 <TableCell sx={{ color: '#fff' }} align="right">
                   {row.tileId ? row.tileId : '—'}
                 </TableCell>
