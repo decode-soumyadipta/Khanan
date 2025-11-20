@@ -20,7 +20,8 @@ const processQueue = (error: any | null) => {
 };
 
 // Log API URL configuration for debugging
-const apiBaseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const DEFAULT_API_URL = 'https://khananapi.jambagrad.com/api';
+const apiBaseURL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
 console.log('📍 API Base URL:', apiBaseURL);
 
 // Create axios instance with cookies enabled

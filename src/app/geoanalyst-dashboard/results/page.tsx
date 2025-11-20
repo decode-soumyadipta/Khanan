@@ -51,7 +51,8 @@ const GoldenText = styled(Typography)({
 });
 
 // API Base URL from environment
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const DEFAULT_API_URL = 'https://khananapi.jambagrad.com/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
 
 const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
 const formatPercent = (value: number | null | undefined, fractionDigits = 1) => {
