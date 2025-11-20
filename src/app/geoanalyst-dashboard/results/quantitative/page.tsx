@@ -39,6 +39,7 @@ import {
 } from '@/services/historyService';
 import type {
   AnalysisHistoryRecord,
+  AnalysisResults,
   QuantitativeAnalysisSnapshot,
   QuantitativeBlockRecord,
 } from '@/services/historyService';
@@ -130,6 +131,35 @@ const firstNumeric = (...values: unknown[]): number | undefined => {
     }
   }
   return undefined;
+};
+
+const debugLog = (...args: unknown[]) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const shouldLog = process.env.NODE_ENV !== 'production';
+  if (shouldLog) {
+    // eslint-disable-next-line no-console
+    console.log('[QuantitativeResults]', ...args);
+  }
+};
+
+const safeParseJson = <T,>(value: unknown, context: string): T | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return value as T;
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch (error) {
+    debugLog(`Failed to parse JSON for ${context}`, error);
+    return null;
+  }
 };
 
 interface MineBlockRow {
@@ -648,6 +678,8 @@ const QuantitativeResultsPage = () => {
   const [persistError, setPersistError] = useState<string | null>(null);
   const [persistedAt, setPersistedAt] = useState<string | null>(null);
   const bootstrapQuantTriggeredRef = useRef(false);
+  const initialQuantAttemptRef = useRef(false);
+  const quantitativeInFlightRef = useRef(false);
   const requiresFreshQuantitative = useMemo(() => {
     if (!quantitativeResult) {
       return true;
@@ -699,31 +731,85 @@ const QuantitativeResultsPage = () => {
           return;
         }
 
-        setHistoryRecord(record);
-        if (record?.results) {
-          setResults(record.results);
+        const normalizedResults = safeParseJson<AnalysisResults>(record?.results, 'history.results');
+        const normalizedQuantitative = safeParseJson<QuantitativeAnalysisSnapshot>(
+          record?.quantitativeAnalysis,
+          'history.quantitativeAnalysis',
+        );
+
+        const hydratedRecord: AnalysisHistoryRecord = {
+          ...record,
+          results: (normalizedResults
+            ?? (typeof record?.results === 'object' && record?.results !== null
+              ? (record.results as AnalysisResults)
+              : undefined)) as AnalysisResults | undefined,
+          quantitativeAnalysis: normalizedQuantitative
+            ?? (typeof record?.quantitativeAnalysis === 'object' && record?.quantitativeAnalysis !== null
+              ? record.quantitativeAnalysis as QuantitativeAnalysisSnapshot
+              : undefined),
+        };
+
+        debugLog('History record loaded', {
+          analysisId,
+          hasResults: !!hydratedRecord.results,
+          hasQuantitative: !!hydratedRecord.quantitativeAnalysis,
+        });
+
+        setHistoryRecord(hydratedRecord);
+        if (hydratedRecord.results) {
+          setResults(hydratedRecord.results);
+          debugLog('Baseline detections hydrated', {
+            analysisId,
+            tileCount: Array.isArray(hydratedRecord.results.tiles)
+              ? hydratedRecord.results.tiles.length
+              : 0,
+            detectionCount: (hydratedRecord.results as any)?.detectionCount
+              ?? (hydratedRecord.results as any)?.statistics?.totalDetections
+              ?? null,
+          });
         }
 
-        if (record?.quantitativeAnalysis) {
+        if (hydratedRecord.quantitativeAnalysis) {
           const normalizedStored = normalizeQuantitativeResponse(
             analysisId,
-            record.quantitativeAnalysis,
+            hydratedRecord.quantitativeAnalysis,
             true,
           );
+
+          const hasVisualization = normalizedStored.blocks.some((block) => {
+            const grid = block.visualization?.grid;
+            return Array.isArray(grid?.elevation)
+              && grid.elevation.length > 0
+              && Array.isArray(grid.elevation[0])
+              && grid.elevation[0].length > 0;
+          });
+
+          debugLog('Persisted quantitative snapshot loaded', {
+            analysisId,
+            blockCount: normalizedStored.blocks.length,
+            executedAt: normalizedStored.executedAt,
+            hasVisualization,
+          });
+
           setQuantitativeResult(normalizedStored);
           setPersistState('saved');
           const storedExecutedAt = normalizedStored.executedAt
-            ?? toDateISOString(record.quantitativeAnalysis?.executedAt)
-            ?? toDateISOString(record.updatedAt);
+            ?? toDateISOString(hydratedRecord.quantitativeAnalysis?.executedAt)
+            ?? toDateISOString(hydratedRecord.updatedAt);
           setPersistedAt(storedExecutedAt);
+          initialQuantAttemptRef.current = true;
         }
 
-        if (record?.results) {
+        if (hydratedRecord.results) {
           setLoading(false);
+          if (!hydratedRecord.quantitativeAnalysis) {
+            initialQuantAttemptRef.current = false;
+            setShouldRecompute(true);
+          }
           return;
         }
       } catch (apiError) {
-        console.warn('⚠️  History lookup failed, falling back to live pipeline', apiError);
+        debugLog('History lookup failed, attempting live pipeline fallback', apiError);
       }
 
       try {
@@ -741,9 +827,19 @@ const QuantitativeResultsPage = () => {
           return;
         }
 
-        setResults(data);
+        debugLog('Live pipeline payload loaded', {
+          analysisId,
+          tiles: Array.isArray(data?.tiles) ? data.tiles.length : 0,
+          detections: (data?.detectionCount ?? data?.statistics?.totalDetections) ?? null,
+        });
+
+  setResults(data);
+  setHistoryRecord((prev) => (prev ? { ...prev, results: data as AnalysisResults } : prev));
+        initialQuantAttemptRef.current = false;
+        setShouldRecompute(true);
       } catch (liveError: any) {
         console.error('❌ Unable to load quantitative data', liveError);
+        debugLog('Live pipeline fetch failed', { analysisId, message: liveError?.message ?? 'Unknown error' });
         if (isMounted) {
           setError(liveError.message ?? 'Unable to load quantitative analysis');
         }
@@ -766,6 +862,8 @@ const QuantitativeResultsPage = () => {
       return;
     }
 
+    debugLog('Manual recompute requested', { analysisId, hasBaseline: !!results });
+
     if (!results) {
       setQuantitativeError('Baseline detections are not available yet. Reload the page once detections finish.');
       return;
@@ -776,8 +874,20 @@ const QuantitativeResultsPage = () => {
     setPersistState('idle');
     setPersistedAt(null);
     bootstrapQuantTriggeredRef.current = true;
+    initialQuantAttemptRef.current = true;
     setShouldRecompute(true);
   };
+
+  useEffect(() => {
+    if (!results) {
+      return;
+    }
+
+    if (!quantitativeResult && !initialQuantAttemptRef.current) {
+      initialQuantAttemptRef.current = true;
+      setShouldRecompute(true);
+    }
+  }, [results, quantitativeResult]);
 
   useEffect(() => {
     if (!analysisId) {
@@ -785,30 +895,30 @@ const QuantitativeResultsPage = () => {
     }
 
     if (!results) {
-      if (shouldRecompute || quantitativeLoading) {
-        setQuantitativeLoading(false);
-        setShouldRecompute(false);
-      }
       return;
     }
 
-    if (quantitativeLoading && !shouldRecompute) {
-      return;
-    }
-
-    if (!shouldRecompute && quantitativeResult) {
+    if (!shouldRecompute) {
+      if (quantitativeResult) {
       if (requiresFreshQuantitative && !bootstrapQuantTriggeredRef.current) {
         bootstrapQuantTriggeredRef.current = true;
         setShouldRecompute(true);
       } else if (!requiresFreshQuantitative && bootstrapQuantTriggeredRef.current) {
         bootstrapQuantTriggeredRef.current = false;
       }
+      }
       return;
     }
 
-    let isMounted = true;
+    if (quantitativeInFlightRef.current) {
+      debugLog('Quantitative pipeline already running, skipping duplicate trigger', { analysisId });
+      return;
+    }
+
+    let cancelled = false;
 
     const runQuantitativeAnalysis = async () => {
+      quantitativeInFlightRef.current = true;
       setQuantitativeLoading(true);
       setQuantitativeError(null);
       setPersistError(null);
@@ -816,6 +926,15 @@ const QuantitativeResultsPage = () => {
       setPersistedAt(null);
 
       try {
+        debugLog('Invoking quantitative pipeline', {
+          analysisId,
+          bootstrapTrigger: bootstrapQuantTriggeredRef.current,
+          hasVisualization: quantitativeResult?.blocks?.some((block) => {
+            const grid = block.visualization?.grid;
+            return Array.isArray(grid?.elevation) && grid.elevation.length > 0;
+          }) ?? false,
+        });
+
         const response = await fetch(`${PYTHON_API_BASE}/api/v1/analysis/${analysisId}/quantitative`, {
           method: 'POST',
           headers: {
@@ -831,22 +950,35 @@ const QuantitativeResultsPage = () => {
 
         const normalized = normalizeQuantitativeResponse(analysisId, payload, false);
 
-        if (isMounted) {
+        if (!cancelled) {
           setQuantitativeResult(normalized);
           setPersistedAt(normalized.executedAt ?? toDateISOString(new Date()));
+          debugLog('Quantitative pipeline completed', {
+            analysisId,
+            blockCount: normalized.blocks.length,
+            executedAt: normalized.executedAt,
+          });
         }
       } catch (quantError: any) {
         console.error('❌ Quantitative analysis failed', quantError);
-        if (isMounted) {
+        debugLog('Quantitative pipeline failed', { analysisId, message: quantError?.message ?? 'Unknown error' });
+        if (!cancelled) {
           const message = quantError?.message ?? 'Unable to compute volumetric metrics';
           setQuantitativeError(message);
           setPersistState('error');
           setPersistError(message);
         }
       } finally {
-        if (isMounted) {
+        quantitativeInFlightRef.current = false;
+        if (!cancelled) {
           setQuantitativeLoading(false);
           setShouldRecompute(false);
+          debugLog('Quantitative pipeline settled', {
+            analysisId,
+            shouldRecompute: false,
+          });
+        } else {
+          debugLog('Quantitative pipeline run cancelled before completion', { analysisId });
         }
       }
     };
@@ -854,9 +986,35 @@ const QuantitativeResultsPage = () => {
     runQuantitativeAnalysis();
 
     return () => {
-      isMounted = false;
+      cancelled = true;
+      quantitativeInFlightRef.current = false;
     };
-  }, [analysisId, results, shouldRecompute, quantitativeResult, quantitativeLoading, requiresFreshQuantitative]);
+  }, [analysisId, results, shouldRecompute, quantitativeResult, requiresFreshQuantitative]);
+
+  useEffect(() => {
+    if (!analysisId || !quantitativeResult) {
+      return;
+    }
+
+    debugLog('Quantitative result snapshot updated', {
+      analysisId,
+      blockCount: quantitativeResult.blocks.length,
+      persisted: quantitativeResult.isPersisted ?? false,
+      executedAt: quantitativeResult.executedAt ?? null,
+    });
+  }, [analysisId, quantitativeResult]);
+
+  useEffect(() => {
+    if (!analysisId) {
+      return;
+    }
+
+    debugLog('Quantitative loading state changed', {
+      analysisId,
+      quantitativeLoading,
+      shouldRecompute,
+    });
+  }, [analysisId, quantitativeLoading, shouldRecompute]);
 
   useEffect(() => {
     if (!analysisId || !quantitativeResult) {
@@ -893,18 +1051,31 @@ const QuantitativeResultsPage = () => {
           },
         };
 
+        debugLog('Persisting quantitative snapshot', {
+          analysisId,
+          blockCount: quantitativeResult.blocks.length,
+        });
+
         await saveQuantitativeAnalysis(analysisId, payload);
 
         if (!cancelled) {
           setPersistState('saved');
           setPersistedAt(toDateISOString(payload.executedAt ?? new Date()));
           setQuantitativeResult((prev) => (prev ? { ...prev, isPersisted: true } : prev));
+          debugLog('Quantitative snapshot persisted', {
+            analysisId,
+            executedAt: payload.executedAt ?? null,
+          });
         }
       } catch (error: any) {
         if (!cancelled) {
           const message = error?.message ?? 'Failed to store quantitative analysis';
           setPersistState('error');
           setPersistError(message);
+          debugLog('Persist quantitative snapshot failed', {
+            analysisId,
+            message,
+          });
         }
       }
     };
