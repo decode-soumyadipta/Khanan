@@ -97,6 +97,8 @@ type PlotComponentProps = {
   style?: CSSProperties;
   onHover?: (event: PlotHoverEvent) => void;
   onUnhover?: (event: PlotHoverEvent) => void;
+  onInitialized?: (figure: any, graphDiv: any) => void;
+  onUpdate?: (figure: any, graphDiv: any) => void;
 } & Record<string, unknown>;
 
 type PlotComponent = (props: PlotComponentProps) => ReactElement;
@@ -1002,7 +1004,17 @@ const ContourPlot = memo(({
   );
 
   const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; z: number | null } | null>(null);
-  const plotRef = useRef<any>(null);
+  const [graphInstance, setGraphInstance] = useState<any>(null);
+  const graphInstanceRef = useRef<any>(null);
+
+  const syncGraphInstance = useCallback((graphDiv: any) => {
+    if (!graphDiv || graphInstanceRef.current === graphDiv) {
+      return;
+    }
+    graphInstanceRef.current = graphDiv;
+    setGraphInstance(graphDiv);
+    setHoverInfo(null); // Reset to default fallback when plot re-initializes
+  }, []);
   const defaultHoverInfo = useMemo(() => {
     if (!hasData) {
       return null;
@@ -1024,6 +1036,14 @@ const ContourPlot = memo(({
       z: typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate) ? elevationCandidate : null,
     } as const;
   }, [axisX, axisY, columnCount, grid.elevation, hasData, rowCount]);
+
+  useEffect(() => {
+    if (!defaultHoverInfo) {
+      return;
+    }
+
+    setHoverInfo((previous) => (previous ?? defaultHoverInfo));
+  }, [defaultHoverInfo]);
 
   const data = useMemo<PlotlyDatum[]>(() => {
     if (!hasData) {
@@ -1113,8 +1133,7 @@ const ContourPlot = memo(({
   }, [axisX, axisY, columnCount, grid.elevation, rowCount]);
 
   useEffect(() => {
-    const graphDiv = plotRef.current;
-    if (!graphDiv || typeof graphDiv.on !== 'function') {
+    if (!graphInstance || typeof graphInstance.on !== 'function') {
       return undefined;
     }
 
@@ -1122,20 +1141,16 @@ const ContourPlot = memo(({
       handleHover(event);
     };
 
-    graphDiv.on('plotly_hover', hoverListener);
-
-    const off = typeof graphDiv.removeListener === 'function'
-      ? (eventName: string, listener: (event: PlotHoverEvent) => void) => graphDiv.removeListener(eventName, listener)
-      : typeof graphDiv.off === 'function'
-        ? (eventName: string, listener: (event: PlotHoverEvent) => void) => graphDiv.off(eventName, listener)
-        : null;
+    graphInstance.on('plotly_hover', hoverListener);
 
     return () => {
-      if (off) {
-        off('plotly_hover', hoverListener);
+      if (typeof graphInstance.removeListener === 'function') {
+        graphInstance.removeListener('plotly_hover', hoverListener);
+      } else if (typeof graphInstance.off === 'function') {
+        graphInstance.off('plotly_hover', hoverListener);
       }
     };
-  }, [handleHover]);
+  }, [graphInstance, handleHover]);
 
   const layout = useMemo<PlotlyLayout>(
     () => ({
@@ -1187,12 +1202,13 @@ const ContourPlot = memo(({
       <Box sx={{ position: 'relative', width: '100%', height: 280 }}>
         <Plot
           key={plotKey}
-          ref={plotRef}
           data={data}
           layout={layout}
           config={plotConfig}
           style={{ width: '100%', height: '100%' }}
           onHover={handleHover}
+          onInitialized={(_, graphDiv) => syncGraphInstance(graphDiv)}
+          onUpdate={(_, graphDiv) => syncGraphInstance(graphDiv)}
         />
       </Box>
       <Stack
@@ -1266,7 +1282,17 @@ const SurfacePlot = memo(({
   const colorRange = elevationStats;
 
   const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; elevation: number | null; depth: number | null } | null>(null);
-  const plotRef = useRef<any>(null);
+  const [graphInstance, setGraphInstance] = useState<any>(null);
+  const graphInstanceRef = useRef<any>(null);
+
+  const syncGraphInstance = useCallback((graphDiv: any) => {
+    if (!graphDiv || graphInstanceRef.current === graphDiv) {
+      return;
+    }
+    graphInstanceRef.current = graphDiv;
+    setGraphInstance(graphDiv);
+    setHoverInfo(null); // Reset to default metrics when surface plot reloads
+  }, []);
   const defaultHoverInfo = useMemo(() => {
     if (!hasData) {
       return null;
@@ -1303,6 +1329,14 @@ const SurfacePlot = memo(({
       depth: normalizedDepth,
     } as const;
   }, [axisX, axisY, columnCount, depthMatrix, grid.elevation, grid.rimElevation, hasData, rowCount]);
+
+  useEffect(() => {
+    if (!defaultHoverInfo) {
+      return;
+    }
+
+    setHoverInfo((previous) => (previous ?? defaultHoverInfo));
+  }, [defaultHoverInfo]);
 
   const data = useMemo<PlotlyDatum[]>(() => {
     if (!hasData) {
@@ -1416,8 +1450,7 @@ const SurfacePlot = memo(({
   }, [axisX, axisY, columnCount, depthMatrix, grid.elevation, grid.rimElevation, rowCount]);
 
   useEffect(() => {
-    const graphDiv = plotRef.current;
-    if (!graphDiv || typeof graphDiv.on !== 'function') {
+    if (!graphInstance || typeof graphInstance.on !== 'function') {
       return undefined;
     }
 
@@ -1425,20 +1458,16 @@ const SurfacePlot = memo(({
       handleHover(event);
     };
 
-    graphDiv.on('plotly_hover', hoverListener);
-
-    const off = typeof graphDiv.removeListener === 'function'
-      ? (eventName: string, listener: (event: PlotHoverEvent) => void) => graphDiv.removeListener(eventName, listener)
-      : typeof graphDiv.off === 'function'
-        ? (eventName: string, listener: (event: PlotHoverEvent) => void) => graphDiv.off(eventName, listener)
-        : null;
+    graphInstance.on('plotly_hover', hoverListener);
 
     return () => {
-      if (off) {
-        off('plotly_hover', hoverListener);
+      if (typeof graphInstance.removeListener === 'function') {
+        graphInstance.removeListener('plotly_hover', hoverListener);
+      } else if (typeof graphInstance.off === 'function') {
+        graphInstance.off('plotly_hover', hoverListener);
       }
     };
-  }, [handleHover]);
+  }, [graphInstance, handleHover]);
 
   const surfacePlotConfig = useMemo<PlotlyConfig>(
     () => ({
@@ -1515,12 +1544,13 @@ const SurfacePlot = memo(({
       <Box sx={{ position: 'relative', width: '100%', height: 280 }}>
         <Plot
           key={plotKey}
-          ref={plotRef}
           data={data}
           layout={layout}
           config={surfacePlotConfig}
           style={{ width: '100%', height: '100%' }}
           onHover={handleHover}
+          onInitialized={(_, graphDiv) => syncGraphInstance(graphDiv)}
+          onUpdate={(_, graphDiv) => syncGraphInstance(graphDiv)}
         />
       </Box>
       <Stack
