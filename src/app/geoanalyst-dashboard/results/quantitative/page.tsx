@@ -1003,7 +1003,53 @@ const ContourPlot = memo(({
     [grid.resolutionY, grid.y, maxY, minY, rowCount],
   );
 
-  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; z: number | null } | null>(null);
+  const computeDefaultHoverInfo = useCallback(() => {
+    if (!hasData) {
+      return null;
+    }
+
+    const resolveHoverInfo = (rowIndex: number, columnIndex: number) => {
+      if (rowIndex < 0 || columnIndex < 0 || rowIndex >= rowCount || columnIndex >= columnCount) {
+        return null;
+      }
+
+      const xCandidate = axisX[columnIndex];
+      const yCandidate = axisY[rowIndex];
+
+      if (!Number.isFinite(xCandidate) || !Number.isFinite(yCandidate)) {
+        return null;
+      }
+
+      const elevationCandidate = getMatrixValue(grid.elevation, rowIndex, columnIndex);
+
+      return {
+        x: xCandidate as number,
+        y: yCandidate as number,
+        z: typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate) ? elevationCandidate : null,
+      } as const;
+    };
+
+    const centerRow = Math.max(0, Math.min(rowCount - 1, Math.floor(rowCount / 2)));
+    const centerColumn = Math.max(0, Math.min(columnCount - 1, Math.floor(columnCount / 2)));
+
+    const center = resolveHoverInfo(centerRow, centerColumn);
+    if (center) {
+      return center;
+    }
+
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+        const candidate = resolveHoverInfo(rowIndex, columnIndex);
+        if (candidate) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
+  }, [axisX, axisY, columnCount, grid.elevation, hasData, rowCount]);
+
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; z: number | null } | null>(() => computeDefaultHoverInfo());
   const [graphInstance, setGraphInstance] = useState<any>(null);
   const graphInstanceRef = useRef<any>(null);
 
@@ -1015,35 +1061,8 @@ const ContourPlot = memo(({
     setGraphInstance(graphDiv);
     setHoverInfo(null); // Reset to default fallback when plot re-initializes
   }, []);
-  const defaultHoverInfo = useMemo(() => {
-    if (!hasData) {
-      return null;
-    }
-    const rowIndex = Math.max(0, Math.min(rowCount - 1, Math.floor(rowCount / 2)));
-    const columnIndex = Math.max(0, Math.min(columnCount - 1, Math.floor(columnCount / 2)));
 
-    const xCandidate = axisX[columnIndex];
-    const yCandidate = axisY[rowIndex];
-    const elevationCandidate = getMatrixValue(grid.elevation, rowIndex, columnIndex);
-
-    if (!Number.isFinite(xCandidate) || !Number.isFinite(yCandidate)) {
-      return null;
-    }
-
-    return {
-      x: xCandidate as number,
-      y: yCandidate as number,
-      z: typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate) ? elevationCandidate : null,
-    } as const;
-  }, [axisX, axisY, columnCount, grid.elevation, hasData, rowCount]);
-
-  useEffect(() => {
-    if (!defaultHoverInfo) {
-      return;
-    }
-
-    setHoverInfo((previous) => (previous ?? defaultHoverInfo));
-  }, [defaultHoverInfo]);
+  const defaultHoverInfo = useMemo(() => computeDefaultHoverInfo(), [computeDefaultHoverInfo]);
 
   const data = useMemo<PlotlyDatum[]>(() => {
     if (!hasData) {
@@ -1281,7 +1300,66 @@ const SurfacePlot = memo(({
   const colorScale: PlotlyDatum['colorscale'] = 'Portland';
   const colorRange = elevationStats;
 
-  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; elevation: number | null; depth: number | null } | null>(null);
+  const computeDefaultHoverInfo = useCallback(() => {
+    if (!hasData) {
+      return null;
+    }
+
+    const resolveHoverInfo = (rowIndex: number, columnIndex: number) => {
+      if (rowIndex < 0 || columnIndex < 0 || rowIndex >= rowCount || columnIndex >= columnCount) {
+        return null;
+      }
+
+      const xCandidate = axisX[columnIndex];
+      const yCandidate = axisY[rowIndex];
+
+      if (!Number.isFinite(xCandidate) || !Number.isFinite(yCandidate)) {
+        return null;
+      }
+
+      const elevationCandidate = getMatrixValue(grid.elevation, rowIndex, columnIndex);
+      let depthCandidate = getMatrixValue(depthMatrix, rowIndex, columnIndex);
+
+      if ((depthCandidate === null || !Number.isFinite(depthCandidate)) && typeof grid.rimElevation === 'number' && Number.isFinite(grid.rimElevation) && typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate)) {
+        const derivedDepth = grid.rimElevation - elevationCandidate;
+        if (Number.isFinite(derivedDepth)) {
+          depthCandidate = derivedDepth < 0 ? 0 : derivedDepth;
+        }
+      }
+
+      const normalizedDepth = typeof depthCandidate === 'number' && Number.isFinite(depthCandidate)
+        ? depthCandidate
+        : null;
+
+      return {
+        x: xCandidate as number,
+        y: yCandidate as number,
+        elevation: typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate) ? elevationCandidate : null,
+        depth: normalizedDepth,
+      } as const;
+    };
+
+    const centerRow = Math.max(0, Math.min(rowCount - 1, Math.floor(rowCount / 2)));
+    const centerColumn = Math.max(0, Math.min(columnCount - 1, Math.floor(columnCount / 2)));
+
+    const center = resolveHoverInfo(centerRow, centerColumn);
+    if (center) {
+      return center;
+    }
+
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+        const candidate = resolveHoverInfo(rowIndex, columnIndex);
+        if (candidate) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
+  }, [axisX, axisY, columnCount, depthMatrix, grid.elevation, grid.rimElevation, hasData, rowCount]);
+
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; y: number; elevation: number | null; depth: number | null } | null>(() => computeDefaultHoverInfo());
   const [graphInstance, setGraphInstance] = useState<any>(null);
   const graphInstanceRef = useRef<any>(null);
 
@@ -1293,50 +1371,8 @@ const SurfacePlot = memo(({
     setGraphInstance(graphDiv);
     setHoverInfo(null); // Reset to default metrics when surface plot reloads
   }, []);
-  const defaultHoverInfo = useMemo(() => {
-    if (!hasData) {
-      return null;
-    }
 
-    const rowIndex = Math.max(0, Math.min(rowCount - 1, Math.floor(rowCount / 2)));
-    const columnIndex = Math.max(0, Math.min(columnCount - 1, Math.floor(columnCount / 2)));
-
-    const xCandidate = axisX[columnIndex];
-    const yCandidate = axisY[rowIndex];
-
-    if (!Number.isFinite(xCandidate) || !Number.isFinite(yCandidate)) {
-      return null;
-    }
-
-    const elevationCandidate = getMatrixValue(grid.elevation, rowIndex, columnIndex);
-    let depthCandidate = getMatrixValue(depthMatrix, rowIndex, columnIndex);
-
-    if ((depthCandidate === null || !Number.isFinite(depthCandidate)) && typeof grid.rimElevation === 'number' && Number.isFinite(grid.rimElevation) && typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate)) {
-      const derivedDepth = grid.rimElevation - elevationCandidate;
-      if (Number.isFinite(derivedDepth)) {
-        depthCandidate = derivedDepth < 0 ? 0 : derivedDepth;
-      }
-    }
-
-    const normalizedDepth = typeof depthCandidate === 'number' && Number.isFinite(depthCandidate)
-      ? depthCandidate
-      : null;
-
-    return {
-      x: xCandidate as number,
-      y: yCandidate as number,
-      elevation: typeof elevationCandidate === 'number' && Number.isFinite(elevationCandidate) ? elevationCandidate : null,
-      depth: normalizedDepth,
-    } as const;
-  }, [axisX, axisY, columnCount, depthMatrix, grid.elevation, grid.rimElevation, hasData, rowCount]);
-
-  useEffect(() => {
-    if (!defaultHoverInfo) {
-      return;
-    }
-
-    setHoverInfo((previous) => (previous ?? defaultHoverInfo));
-  }, [defaultHoverInfo]);
+  const defaultHoverInfo = useMemo(() => computeDefaultHoverInfo(), [computeDefaultHoverInfo]);
 
   const data = useMemo<PlotlyDatum[]>(() => {
     if (!hasData) {
