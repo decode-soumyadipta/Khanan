@@ -14,7 +14,6 @@ import {
   Chip,
   Badge,
   Avatar,
-  useTheme,
 } from "@mui/material";
 import {
   Dashboard as DashboardIcon,
@@ -307,7 +306,6 @@ const hasPermission = (permissions: any, requiredPermission: { resource: string,
 // ------------------ Sidebar Component ------------------
 export function AppSidebar() {
   const pathname = usePathname();
-  const theme = useTheme();
   const router = useRouter();
   const { open, isMobile, openMobile, setOpenMobile } = useSidebar();
   const { 
@@ -321,6 +319,7 @@ export function AppSidebar() {
     hasModuleAccess 
   } = useAuth();
   const isExpanded = open || openMobile;
+  const isGeoAnalystDashboard = pathname?.startsWith('/geoanalyst-dashboard');
 
   const handleLinkClick = () => {
     if (isMobile) setOpenMobile(false);
@@ -402,7 +401,13 @@ export function AppSidebar() {
           {group.map((item) => {
             const isActive = pathname === item.url;
             const IconComponent = item.icon;
-            
+            const activeClasses = isGeoAnalystDashboard
+              ? "bg-white border border-[#E2E8F0] shadow-[0_14px_32px_rgba(15,23,42,0.16)] text-[#0f172a]"
+              : "bg-blue-100/90 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800";
+            const inactiveClasses = isGeoAnalystDashboard
+              ? "text-[#1f2937] hover:bg-white/80 hover:shadow-[0_12px_26px_rgba(15,23,42,0.12)] border border-transparent"
+              : "hover:bg-gray-100 dark:hover:bg-gray-800 border border-transparent";
+
             return (
               <Tooltip
                 key={item.title}
@@ -414,15 +419,19 @@ export function AppSidebar() {
                   onClick={handleLinkClick}
                   className={cn(
                     "flex items-center p-2 rounded-lg transition-all duration-200 mx-1",
-                    isActive
-                      ? "bg-blue-100/90 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                      : "hover:bg-gray-100 dark:hover:bg-gray-800 border border-transparent"
+                    isActive ? activeClasses : inactiveClasses
                   )}
                 >
                   <IconComponent
                     className={cn(
                       "w-5 h-5 transition-colors",
-                      isActive ? "text-blue-500" : "text-gray-500"
+                      isGeoAnalystDashboard
+                        ? isActive
+                          ? "text-[#2563eb]"
+                          : "text-[#0f172a]"
+                        : isActive
+                          ? "text-blue-500"
+                          : "text-gray-500"
                     )}
                   />
                   {isExpanded && (
@@ -455,17 +464,28 @@ export function AppSidebar() {
       )}
 
       <Paper
-        elevation={2}
+        elevation={isGeoAnalystDashboard ? 0 : 2}
+        sx={{
+          background: isGeoAnalystDashboard ? '#ffffff' : undefined,
+          boxShadow: isGeoAnalystDashboard
+            ? '0 22px 48px rgba(15, 23, 42, 0.18)'
+            : undefined,
+          borderRight: isGeoAnalystDashboard ? '1px solid rgba(148, 163, 184, 0.25)' : undefined,
+          overflow: 'hidden',
+          borderRadius: isGeoAnalystDashboard ? '0 22px 22px 0' : undefined
+        }}
         className={cn(
-          "flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800",
+          "flex flex-col border-r border-gray-200 dark:border-gray-800",
+          isGeoAnalystDashboard ? "bg-white" : "bg-white dark:bg-gray-900",
           "fixed md:relative z-40 h-[calc(100vh-56px)] mt-14",
           isMobile
             ? openMobile
               ? "w-[240px]"
               : "w-0"
             : open
-            ? "w-[240px]"
-            : "w-[60px]",
+              ? "w-[240px]"
+              : "w-[60px]",
+          !open && !openMobile && "pt-6",
           "transition-all duration-300 ease-in-out"
         )}
         square
@@ -475,7 +495,12 @@ export function AppSidebar() {
           <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
             {/* Profile Section */}
             {isExpanded ? (
-              <div className="bg-linear-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 border-b border-gray-100 dark:border-gray-800 px-3 py-3">
+              <div className={cn(
+                "border-b border-gray-100 dark:border-gray-800 px-3 py-3",
+                isGeoAnalystDashboard
+                  ? "bg-white mx-3 mt-6 mb-3"
+                  : "bg-linear-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800"
+              )}>
                 {/* Avatar & Edit Row */}
                 <div className="flex items-center justify-between mb-3">
                   <Badge
@@ -552,7 +577,10 @@ export function AppSidebar() {
                 {user && <UserStatus user={user} />}
               </div>
             ) : (
-              <div className="relative group pt-3 p-2 flex justify-center border-b border-gray-100 dark:border-gray-800 pb-3">
+              <div className={cn(
+                "relative group pt-6 p-2 flex justify-center border-b border-gray-100 dark:border-gray-800 pb-3",
+                isGeoAnalystDashboard && "bg-white mx-2"
+              )}>
                 <Badge
                   overlap="circular"
                   anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -600,14 +628,20 @@ export function AppSidebar() {
             />
 
             {/* Navigation Items */}
-            <div className="space-y-1 p-2">
+            <div className={cn(
+              "space-y-1 p-2",
+              isGeoAnalystDashboard && "bg-white mx-3 mt-7 mb-5"
+            )}>
               {renderGroupedItems()}
             </div>
           </div>
 
           {/* Fixed Footer Section */}
           {(!isMobile || isExpanded) && (
-            <div className="border-t border-gray-200 dark:border-gray-800 bg-inherit">
+            <div className={cn(
+              "border-t border-gray-200 dark:border-gray-800 bg-inherit",
+              isGeoAnalystDashboard && "bg-white border-white"
+            )}>
               {/* Auth Button */}
               <Tooltip
                 title={isExpanded ? "" : isAuthenticated ? "Logout" : "Login"}

@@ -92,23 +92,23 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     <div className="space-y-4 p-4">
       {/* User Info */}
       {user && (
-        <div className="bg-linear-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-red-50 rounded-xl p-4 border border-amber-200 shadow-[0_16px_32px_rgba(217,119,6,0.12)]">
           <div className="flex items-center space-x-3">
-            <div className="bg-blue-500 rounded-full p-2">
+            <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-full p-2 shadow-[0_8px_16px_rgba(217,119,6,0.3)]">
               <User className="text-white" size={20} />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Logged in as</p>
-              <p className="font-semibold text-gray-900">{user.name}</p>
-              <p className="text-xs text-gray-500">{user.email}</p>
+              <p className="text-sm text-amber-700">Logged in as</p>
+              <p className="font-semibold text-amber-900">{user.name}</p>
+              <p className="text-xs text-amber-700">{user.email}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Search Box */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <label className="block text-sm font-semibold text-gray-700 mb-3">
+      <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-xl shadow-[0_18px_42px_rgba(217,119,6,0.14)] p-4 border border-amber-200/70">
+        <label className="block text-sm font-semibold text-amber-900 mb-3">
           <Search className="inline mr-2" size={16} />
           Search Location
         </label>
@@ -124,13 +124,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               onKeyPress={handleKeyPress}
               onFocus={() => setShowSuggestions(true)}
               placeholder="Enter city name, region, or coordinates..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="flex-1 px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm bg-white/80 text-gray-900"
               disabled={isSearching}
             />
             <button
               onClick={handleSearch}
               disabled={isSearching}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors font-semibold text-sm"
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg hover:from-amber-600 hover:to-orange-700 disabled:from-gray-400 disabled:to-gray-500 transition-all font-semibold text-sm shadow-[0_8px_16px_rgba(217,119,6,0.25)]"
             >
               {isSearching ? 'Searching...' : 'Search'}
             </button>
@@ -138,11 +138,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
           {/* Search Results / Suggestions Dropdown */}
           {showSuggestions && (
-            <div className="border border-gray-200 rounded-lg bg-white shadow-lg max-h-80 overflow-y-auto">
+            <div className="border border-amber-200/70 rounded-lg bg-white/95 shadow-[0_20px_48px_rgba(217,119,6,0.18)] max-h-80 overflow-y-auto">
               {/* Recent Searches */}
               {recentSearches.length > 0 && !searchQuery && (
                 <>
-                  <div className="px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-600 sticky top-0">
+                  <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 text-xs font-semibold text-amber-800 sticky top-0">
                     📍 Recent Searches
                   </div>
                   {recentSearches.map((item, idx) => (
@@ -152,9 +152,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                         setSearchQuery(item);
                         handleSearch();
                       }}
-                      className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      className="w-full text-left px-4 py-2 hover:bg-amber-50 transition-colors border-b border-amber-50 last:border-b-0"
                     >
-                      <p className="text-sm text-gray-700">{item}</p>
+                      <p className="text-sm text-amber-900">{item}</p>
                     </button>
                   ))}
                   <div className="border-t"></div>
@@ -164,17 +164,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               {/* Suggested Coal Mining Locations */}
               {!searchQuery && (
                 <>
-                  <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-600">
+                  <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 text-xs font-semibold text-amber-800">
                     ⛏️ Suggested Coal Mining Regions
                   </div>
                   {suggestedLocations.map((location, idx) => (
                     <button
                       key={`suggested-${idx}`}
                       onClick={() => handleSuggestedLocation(location)}
-                      className="w-full text-left px-4 py-2 hover:bg-amber-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      className="w-full text-left px-4 py-2 hover:bg-yellow-50 transition-colors border-b border-amber-50 last:border-b-0"
                     >
-                      <p className="text-sm font-medium text-gray-800">{location.name}</p>
-                      <p className="text-xs text-gray-600">{location.displayName}</p>
+                      <p className="text-sm font-medium text-amber-900">{location.name}</p>
+                      <p className="text-xs text-amber-700">{location.displayName}</p>
                     </button>
                   ))}
                 </>
@@ -183,7 +183,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               {/* Search Results */}
               {searchResults.length > 0 && (
                 <>
-                  <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-600">
+                  <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 text-xs font-semibold text-amber-800">
                     🔍 Search Results
                   </div>
                   {searchResults.slice(0, 8).map((result, index) => (
@@ -198,10 +198,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                         }
                         setShowSuggestions(false);
                       }}
-                      className="w-full text-left px-4 py-2 hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      className="w-full text-left px-4 py-2 hover:bg-yellow-50 transition-colors border-b border-amber-50 last:border-b-0"
                     >
-                      <p className="font-medium text-gray-900 text-sm">{result.name}</p>
-                      <p className="text-xs text-gray-500">{result.displayName}</p>
+                      <p className="font-medium text-amber-900 text-sm">{result.name}</p>
+                      <p className="text-xs text-amber-700">{result.displayName}</p>
                     </button>
                   ))}
                 </>
@@ -218,13 +218,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* AOI Tools */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+      <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-xl shadow-[0_18px_42px_rgba(217,119,6,0.14)] p-4 border border-amber-200/70">
+        <h3 className="text-sm font-semibold text-amber-900 mb-3">
           Area of Interest (AOI)
         </h3>
         <div className="space-y-2">
           <button
-            className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-semibold"
+            className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg hover:from-orange-600 hover:to-amber-700 transition-all font-semibold shadow-[0_10px_24px_rgba(217,119,6,0.25)]"
           >
             <Edit3 size={18} />
             <span>Draw Polygon on Map</span>
@@ -233,24 +233,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* Analysis */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+      <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-xl shadow-[0_18px_42px_rgba(217,119,6,0.14)] p-4 border border-amber-200/70">
+        <h3 className="text-sm font-semibold text-amber-900 mb-3">
           Run Analysis
         </h3>
         <button
           onClick={onStartAnalysis}
           disabled={!canStartAnalysis}
-          className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-colors ${
+          className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-semibold transition-all ${
             canStartAnalysis
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 shadow-[0_10px_24px_rgba(16,185,129,0.25)]'
+              : 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-600 cursor-not-allowed'
           }`}
         >
           <Play size={18} />
           <span>Start Mining Detection</span>
         </button>
         {!canStartAnalysis && (
-          <p className="text-xs text-gray-500 mt-2 text-center">
+          <p className="text-xs text-amber-700 mt-2 text-center">
             Please create an AOI first
           </p>
         )}

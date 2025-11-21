@@ -1,7 +1,7 @@
 // app/LayoutClient.tsx
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SnackbarProvider } from '@/contexts/SnackbarContext';
@@ -12,9 +12,10 @@ import { Box, CircularProgress } from '@mui/material';
 import { SidebarProvider } from "@/components/sidebar/provider";
 import { AppSidebar } from "@/components/sidebar/sidebar";
 import { Header } from "@/components/layout/Header";
+import { cn } from '@/lib/utils';
 
 // Auth wrapper for protected content
-function ProtectedLayout({ children }: { children: React.ReactNode }) {
+function ProtectedLayout({ children, isGeoAnalystDashboard }: { children: React.ReactNode; isGeoAnalystDashboard: boolean }) {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
@@ -36,12 +37,15 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full">
+      <div className={cn("flex h-screen w-full", isGeoAnalystDashboard && "bg-white") }>
         <AppSidebar />
         {/* Main content area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={cn("flex-1 flex flex-col overflow-hidden", isGeoAnalystDashboard && "bg-white") }>
           <Header />
-          <main className="flex-1 overflow-auto pt-14 md:pt-14 pb-20 md:pb-0">
+          <main className={cn(
+            "flex-1 overflow-auto pt-14 md:pt-14 pb-20 md:pb-0",
+            isGeoAnalystDashboard && "bg-white"
+          )}>
             {children}
           </main>
           {/* <Footer /> */}
@@ -53,7 +57,6 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const unprotectedPages = [
     "/login",
@@ -67,10 +70,14 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   ];
 
   const isProtectedPage = !unprotectedPages.includes(pathname);
+  const isGeoAnalystDashboard = pathname?.startsWith('/geoanalyst-dashboard');
 
   return (
     <body 
-      className="bg-gray-50 dark:bg-gray-900 transition-colors duration-300"
+      className={cn(
+        "bg-gray-50 dark:bg-gray-900 transition-colors duration-300",
+        isGeoAnalystDashboard && "bg-white"
+      )}
       suppressHydrationWarning
     >
       <SnackbarProvider>
@@ -80,7 +87,7 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
               <div className="min-h-screen flex flex-col">
                 <main className="flex-1">
                   {isProtectedPage ? (
-                    <ProtectedLayout>
+                    <ProtectedLayout isGeoAnalystDashboard={Boolean(isGeoAnalystDashboard)}>
                       {children}
                     </ProtectedLayout>
                   ) : (

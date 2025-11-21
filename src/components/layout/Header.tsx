@@ -211,50 +211,112 @@ export const Header = () => {
 
   const isGeoAnalystDashboard = pathname?.startsWith('/geoanalyst-dashboard');
 
+  const sidebarIconColor = isGeoAnalystDashboard ? '#1f2937' : '#fcd34d';
+  const sidebarIconHover = isGeoAnalystDashboard ? 'rgba(15, 23, 42, 0.12)' : 'rgba(251, 191, 36, 0.1)';
+  const sidebarIconHoverColor = isGeoAnalystDashboard ? '#0f172a' : '#fbbf24';
+  const actionIconColor = isGeoAnalystDashboard ? '#1f2937' : '#fcd34d';
+  const actionIconHoverColor = isGeoAnalystDashboard ? '#0f172a' : '#fbbf24';
+  const actionIconHoverBg = isGeoAnalystDashboard ? 'rgba(15, 23, 42, 0.08)' : 'rgba(251, 191, 36, 0.1)';
+
+  const renderLeftSection = () => {
+    if (isGeoAnalystDashboard) {
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2.5 } }}>
+          <IconButton
+            onClick={toggleSidebar}
+            sx={{
+              color: sidebarIconColor,
+              '&:hover': {
+                backgroundColor: sidebarIconHover,
+                color: sidebarIconHoverColor
+              }
+            }}
+          >
+            <SidebarTrigger asChild />
+          </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2.5 } }}>
+            <Box
+              component="img"
+              src="https://doc.ux4g.gov.in/assets/img/logo/national-emblem.png"
+              alt="National emblem"
+              loading="lazy"
+              sx={{ height: { xs: 32, md: 44 }, width: 'auto' }}
+            />
+            <Box
+              component="img"
+              src="https://doc.ux4g.gov.in/assets/img/logo/company-logo.png"
+              alt="Department logo"
+              loading="lazy"
+              sx={{ height: { xs: 32, md: 44 }, width: 'auto' }}
+            />
+            <Box
+              component="img"
+              src="https://doc.ux4g.gov.in/assets/img/logo/g20-summit.png"
+              alt="G20 summit"
+              loading="lazy"
+              sx={{ height: { xs: 28, md: 40 }, width: 'auto', display: { xs: 'none', sm: 'block' } }}
+            />
+          </Box>
+        </Box>
+      );
+    }
+
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <IconButton
+          onClick={toggleSidebar}
+          sx={{
+            color: sidebarIconColor,
+            '&:hover': {
+              backgroundColor: sidebarIconHover,
+              color: sidebarIconHoverColor
+            }
+          }}
+        >
+          <SidebarTrigger asChild />
+        </IconButton>
+        <Logo size={40} withCircle={true} />
+        <GradientText
+          variant="h6"
+          onClick={() => router.push("/dashboard")}
+          sx={{
+            ml: 1,
+            display: { xs: 'none', sm: 'block' },
+            cursor: 'pointer'
+          }}
+        >
+          KhananNetra
+        </GradientText>
+      </Box>
+    );
+  };
+
   return (
     <AppBar
       position="fixed"
       elevation={0}
       sx={{
         zIndex: theme.zIndex.drawer + 1,
-        background: 'linear-gradient(to right, #1a1a2e, #16213e, #0f3460)',
-        borderBottom: '1px solid rgba(251, 191, 36, 0.2)',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)'
+        background: isGeoAnalystDashboard
+          ? '#ffffff'
+          : 'linear-gradient(to right, #1a1a2e, #16213e, #0f3460)',
+        borderBottom: isGeoAnalystDashboard
+          ? '1px solid rgba(15, 23, 42, 0.08)'
+          : '1px solid rgba(251, 191, 36, 0.2)',
+        boxShadow: isGeoAnalystDashboard
+          ? '0 18px 45px rgba(15, 23, 42, 0.18)'
+          : '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)',
+        color: isGeoAnalystDashboard ? '#1f2937' : '#ffffff'
       }}
     >
       <Toolbar sx={{
         justifyContent: 'space-between',
         p: 0,
-        px: { xs: 1, sm: 2 },
-        minHeight: '64px !important'
+        px: isGeoAnalystDashboard ? { xs: 1.5, md: 3 } : { xs: 1, sm: 2 },
+        minHeight: isGeoAnalystDashboard ? '56px !important' : '64px !important'
       }}>
-        {/* Left: Sidebar + Logo */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconButton
-            onClick={toggleSidebar}
-            sx={{
-              color: '#fcd34d',
-              '&:hover': {
-                backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                color: '#fbbf24'
-              }
-            }}
-          >
-            <SidebarTrigger asChild />
-          </IconButton>
-          <Logo size={40} withCircle={true} />
-          <GradientText
-            variant="h6"
-            onClick={() => router.push("/dashboard")}
-            sx={{
-              ml: 1,
-              display: { xs: 'none', sm: 'block' },
-              cursor: 'pointer'
-            }}
-          >
-            KhananNetra
-          </GradientText>
-        </Box>
+        {/* Left: Sidebar + Branding */}
+        {renderLeftSection()}
 
         {/* Center: Quick Actions (Desktop Only) */}
         {!isMobile && isAuthenticated && !isGeoAnalystDashboard && (
@@ -368,10 +430,10 @@ export const Header = () => {
               onClick={() => router.push('/search')}
               size="small"
               sx={{
-                color: '#fcd34d',
+                color: actionIconColor,
                 '&:hover': {
-                  color: '#fbbf24',
-                  backgroundColor: 'rgba(251, 191, 36, 0.1)'
+                  color: actionIconHoverColor,
+                  backgroundColor: actionIconHoverBg
                 }
               }}
             >
@@ -386,10 +448,10 @@ export const Header = () => {
                 onClick={() => router.push("/notifications")}
                 size="small"
                 sx={{
-                  color: '#fcd34d',
+                  color: actionIconColor,
                   '&:hover': {
-                    color: '#fbbf24',
-                    backgroundColor: 'rgba(251, 191, 36, 0.1)'
+                    color: actionIconHoverColor,
+                    backgroundColor: actionIconHoverBg
                   }
                 }}
               >
@@ -447,11 +509,13 @@ export const Header = () => {
                     sx={{
                       width: 32,
                       height: 32,
-                      bgcolor: '#fbbf24',
-                      color: '#1a1a2e',
+                      bgcolor: isGeoAnalystDashboard ? '#0b9e43' : '#fbbf24',
+                      color: isGeoAnalystDashboard ? '#ffffff' : '#1a1a2e',
                       fontSize: '0.875rem',
                       fontWeight: 'bold',
-                      border: '2px solid rgba(251, 191, 36, 0.5)'
+                      border: isGeoAnalystDashboard
+                        ? '2px solid rgba(15, 23, 42, 0.12)'
+                        : '2px solid rgba(251, 191, 36, 0.5)'
                     }}
                   >
                     {user.name?.charAt(0).toUpperCase() || 'U'}
@@ -468,23 +532,42 @@ export const Header = () => {
                 transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                 anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                 PaperProps={{
-                  sx: {
-                    background: 'linear-gradient(to bottom, #1a1a2e, #16213e)',
-                    border: '1px solid rgba(251, 191, 36, 0.2)',
-                    '& .MuiMenuItem-root': {
-                      color: '#ffffff',
-                      '&:hover': {
-                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                        color: '#fcd34d'
+                  sx: isGeoAnalystDashboard
+                    ? {
+                        background: '#ffffff',
+                        border: '1px solid rgba(15, 23, 42, 0.08)',
+                        boxShadow: '0 20px 45px rgba(15, 23, 42, 0.18)',
+                        '& .MuiMenuItem-root': {
+                          color: '#1f2937',
+                          '&:hover': {
+                            backgroundColor: 'rgba(15, 23, 42, 0.06)',
+                            color: '#0f172a'
+                          }
+                        },
+                        '& .MuiListItemIcon-root': {
+                          color: '#0b9e43'
+                        },
+                        '& .MuiDivider-root': {
+                          borderColor: 'rgba(15, 23, 42, 0.08)'
+                        }
                       }
-                    },
-                    '& .MuiListItemIcon-root': {
-                      color: '#fcd34d'
-                    },
-                    '& .MuiDivider-root': {
-                      borderColor: 'rgba(251, 191, 36, 0.2)'
-                    }
-                  }
+                    : {
+                        background: 'linear-gradient(to bottom, #1a1a2e, #16213e)',
+                        border: '1px solid rgba(251, 191, 36, 0.2)',
+                        '& .MuiMenuItem-root': {
+                          color: '#ffffff',
+                          '&:hover': {
+                            backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                            color: '#fcd34d'
+                          }
+                        },
+                        '& .MuiListItemIcon-root': {
+                          color: '#fcd34d'
+                        },
+                        '& .MuiDivider-root': {
+                          borderColor: 'rgba(251, 191, 36, 0.2)'
+                        }
+                      }
                 }}
               >
                 <MenuItem onClick={() => router.push('/profile')}>
@@ -528,10 +611,10 @@ export const Header = () => {
                 onClick={toggleFullscreen}
                 size="small"
                 sx={{
-                  color: '#ffffff',
+                  color: actionIconColor,
                   '&:hover': {
-                    color: '#fcd34d',
-                    backgroundColor: 'rgba(251, 191, 36, 0.1)'
+                    color: actionIconHoverColor,
+                    backgroundColor: actionIconHoverBg
                   }
                 }}
               >
