@@ -376,18 +376,46 @@ export default function LoginPage() {
             />
             <Box
               component="img"
-              src="https://doc.ux4g.gov.in/assets/img/logo/company-logo.png"
-              alt="Department logo"
+              src="/ntro logo.png"
+              alt="National Technical Research Organisation"
               loading="lazy"
               sx={{ height: 48, width: 'auto' }}
             />
             <Box
-              component="img"
-              src="https://doc.ux4g.gov.in/assets/img/logo/g20-summit.png"
-              alt="G20 summit"
-              loading="lazy"
-              sx={{ height: 48, width: 'auto', display: { xs: 'none', sm: 'block' } }}
+              sx={{
+                width: 0.005,
+                height: 40,
+                bgcolor: '#E5E7EB',
+                borderRadius: 0.5,
+                display: { xs: 'none', sm: 'block' },
+              }}
             />
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              sx={{ display: { xs: 'none', sm: 'flex' } }}
+            >
+              <Box
+                component="img"
+                src="/logo.png"
+                alt="KhananNetra"
+                loading="lazy"
+                sx={{ height: 48, width: 'auto' }}
+              />
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: 18,
+                  color: '#111827',
+                  fontfamily: '"EB Garamond", "Garamond", "Times New Roman",serif',
+                  letterSpacing: 0.5,
+                }}
+              >
+                KhananNetra
+              </Typography>
+            </Stack>
           </Stack>
           <Box sx={{ flexGrow: 1 }} />
           <Stack direction="row" spacing={1.5} alignItems="center">
@@ -397,18 +425,20 @@ export default function LoginPage() {
               onClick={handleOpenLoginOverlay}
               disabled={isOverlayActive}
               sx={{
-                backgroundColor: '#B91C1C',
+                backgroundColor: '#EF4444',
                 borderRadius: 999,
                 px: 3.5,
                 fontWeight: 700,
                 color: '#FFFFFF',
-                boxShadow: '0 6px 16px rgba(185, 28, 28, 0.35)',
+                boxShadow: '0 12px 28px rgba(239, 68, 68, 0.45)',
+                letterSpacing: 0.6,
+                transition: 'all 0.25s ease',
                 '&:hover': {
-                  backgroundColor: '#991B1B',
-                  boxShadow: '0 8px 22px rgba(220, 38, 38, 0.45)',
+                  backgroundColor: '#DC2626',
+                  boxShadow: '0 16px 34px rgba(220, 38, 38, 0.5)',
                 },
                 '&:disabled': {
-                  backgroundColor: 'rgba(185, 28, 28, 0.55)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.55)',
                   boxShadow: 'none',
                   cursor: 'not-allowed',
                 },
@@ -789,7 +819,7 @@ export default function LoginPage() {
             sx={{ color: '#E5E7EB', fontSize: 14 }}
           >
             <Typography>
-              © 2024 - Copyright Ministry of Electronics & IT, Government of India. All rights reserved.
+              © 2024 - National Technical Research Organisation (NTRO). All rights reserved.
             </Typography>
             <Stack direction="row" spacing={3}>
               <Link
