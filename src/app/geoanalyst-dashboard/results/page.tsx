@@ -84,6 +84,7 @@ const ResultsPage = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dragFrameRef = useRef<number | null>(null);
   const results = useMemo(() => normalizeAnalysisResults(analysisData), [analysisData]);
   const analysisStatus = analysisData?.status ?? results?.status;
 
@@ -93,14 +94,37 @@ const ResultsPage = () => {
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
+
+    if (dragFrameRef.current !== null) {
+      cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
+
+    if (mapInstanceRef.current) {
+      window.requestAnimationFrame(() => {
+        mapInstanceRef.current?.invalidateSize();
+      });
+    }
   }, []);
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
     if (!isDragging || !containerRef.current) return;
 
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const newPosition = ((event.clientX - containerRect.left) / containerRect.width) * 100;
-    setSplitPosition(Math.max(40, Math.min(70, newPosition)));
+    if (dragFrameRef.current !== null) {
+      return;
+    }
+
+    const { clientX } = event;
+    dragFrameRef.current = window.requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (!containerRect) {
+        return;
+      }
+
+      const newPosition = ((clientX - containerRect.left) / containerRect.width) * 100;
+      setSplitPosition(Math.max(40, Math.min(70, newPosition)));
+    });
   }, [isDragging]);
 
   useEffect(() => {
@@ -149,13 +173,24 @@ const ResultsPage = () => {
         fetchAttemptedRef.current = true;
         
         console.log(`🔍 Fetching analysis results for ID: ${analysisId}`);
-        
-        // Try Python backend first (in-memory, real-time results)
-        let response = await fetch(`http://localhost:8000/api/v1/analysis/${analysisId}`);
-        
-        if (!response.ok) {
-          console.log('⚠️  Python backend unavailable, trying Node.js proxy...');
-          // Fallback to Node.js backend
+
+        // Only hit the local FastAPI process when running on localhost; remote builds rely on the proxy.
+        const canUseLocalPython = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+        let response: Response | null = null;
+
+        if (canUseLocalPython) {
+          try {
+            response = await fetch(`http://localhost:8000/api/v1/analysis/${analysisId}`);
+          } catch (localError) {
+            console.warn('⚠️  Local Python backend unreachable, skipping direct hit.', localError);
+          }
+        }
+
+        if (!response || !response.ok) {
+          if (response && !response.ok) {
+            console.log('⚠️  Python backend unavailable, trying Node.js proxy...');
+          }
+
           response = await fetch(`${API_BASE_URL}/python/analysis/${analysisId}`);
         }
         

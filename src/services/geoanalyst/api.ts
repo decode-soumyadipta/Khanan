@@ -1,5 +1,6 @@
 // Geo-analyst API service (integrated with Python backend through Node.js proxy)
 import axios from 'axios';
+import type { Polygon, MultiPolygon } from 'geojson';
 import { SearchLocation } from '@/types/geoanalyst';
 
 // Use Node.js backend as proxy to Python
@@ -83,10 +84,14 @@ export const createAOI = async (geometry: any, properties: any) => {
 };
 
 // Start analysis
-export const startAnalysis = async (aoiId: string) => {
-  const response = await api.post('/python/analysis/start', {
-    aoi_id: aoiId
-  });
+export const startAnalysis = async (aoiId: string, geometry?: Polygon | MultiPolygon) => {
+  const payload: Record<string, unknown> = { aoi_id: aoiId };
+
+  if (geometry) {
+    payload.geometry = geometry;
+  }
+
+  const response = await api.post('/python/analysis/start', payload);
   return response.data;
 };
 

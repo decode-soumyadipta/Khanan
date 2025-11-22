@@ -32,6 +32,7 @@ import {
 } from '@mui/icons-material';
 
 import { AOI } from '@/types/geoanalyst';
+import type { Polygon } from 'geojson';
 import { createAOI, startAnalysis as startBackendAnalysis } from '@/services/geoanalyst/api';
 import { useAnalysis } from '@/contexts/AnalysisContext';
 import { AnalysisProgress } from './AnalysisProgress';
@@ -665,7 +666,12 @@ const EnhancedMapComponent: React.FC<EnhancedMapComponentProps> = ({ onAOICreate
 
       // Step 2: Start analysis
       console.log('🚀 Starting analysis for AOI:', aoiId);
-      const analysisResponse = await startBackendAnalysis(aoiId);
+      const polygonGeometry: Polygon = {
+        type: 'Polygon',
+        coordinates: aoiData.geometry.coordinates as Polygon['coordinates']
+      };
+
+      const analysisResponse = await startBackendAnalysis(aoiId, polygonGeometry);
       console.log('✅ Analysis started:', analysisResponse);
 
       // Callback to parent component
