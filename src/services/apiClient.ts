@@ -22,8 +22,22 @@ const processQueue = (error: unknown | null) => {
 };
 
 // Log API URL configuration for debugging
-const DEFAULT_API_URL = 'https://khananapi.jambagrad.com/api';
-const apiBaseURL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
+const DEFAULT_PROD_API_URL = 'https://khanannetra-backend-961413332802.asia-south2.run.app/api';
+const DEFAULT_DEV_API_URL = 'http://localhost:8080/api';
+
+const resolveApiBaseURL = () => {
+  if (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim()) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    return DEFAULT_DEV_API_URL;
+  }
+
+  return DEFAULT_PROD_API_URL;
+};
+
+const apiBaseURL = resolveApiBaseURL();
 console.log('📍 API Base URL:', apiBaseURL);
 
 // Create axios instance with cookies enabled
@@ -66,6 +80,22 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    
+      if (!error.response) {
+        const targetUrl = (() => {
+          if (error.config?.baseURL || error.config?.url) {
+            return `${error.config?.baseURL ?? ''}${error.config?.url ?? ''}`;
+          }
+          return apiBaseURL;
+        })();
+      
+        console.error(`❌ API Network Error: ${error.message} → ${targetUrl}`);
+        return Promise.reject({
+          message: `Unable to reach backend at ${targetUrl}. Verify the container is running and accessible.`,
+          status: 'network_error',
+          data: null,
+        });
+      }
 
     // Only log non-401 errors, or 401 errors from non-auth/analysis endpoints
     // 401 on auth endpoints is expected when user is not logged in
